@@ -2,105 +2,56 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Soporte Claro - Click to Call</title>
+    <title>Click to Call - Claro</title>
     <script src="https://code.webex.com/sdk/webex-calling-sdk.js"></script>
     <style>
-        body { font-family: Arial, sans-serif; background-color: #f7f7f7; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
-        .card { background: white; padding: 2rem; border-radius: 15px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); text-align: center; width: 320px; border-top: 5px solid #ef3829; }
-        .logo { width: 100px; margin-bottom: 1.5rem; }
-        h2 { color: #333; font-size: 1.2rem; margin-bottom: 0.5rem; }
-        p { color: #666; font-size: 0.9rem; margin-bottom: 2rem; }
-        .btn-call { 
-            background-color: #ef3829; color: white; border: none; padding: 12px 20px; 
-            font-size: 1rem; font-weight: bold; border-radius: 50px; cursor: pointer;
-            width: 100%; transition: background 0.3s ease; display: flex; align-items: center; justify-content: center; gap: 10px;
-        }
-        .btn-call:disabled { background-color: #ccc; cursor: not-allowed; }
-        .btn-call:hover:not(:disabled) { background-color: #d32f2f; }
-        #status { margin-top: 1rem; font-size: 0.8rem; color: #888; }
-        .dot { height: 10px; width: 10px; background-color: #bbb; border-radius: 50%; display: inline-block; }
-        .online { background-color: #4caf50; }
+        body { font-family: sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; background: #eee; }
+        .card { background: white; padding: 30px; border-radius: 10px; text-align: center; box-shadow: 0 4px 10px rgba(0,0,0,0.1); width: 300px; }
+        .btn { background: #ef3829; color: white; border: none; padding: 15px; width: 100%; border-radius: 5px; cursor: pointer; font-weight: bold; }
+        .btn:disabled { background: #ccc; }
+        #status { margin-top: 15px; font-size: 12px; color: #666; }
     </style>
 </head>
 <body>
+    <div class="card">
+        <img src="https://upload.wikimedia.org/wikipedia/commons/0/09/Logo_Claro_AMX.svg" width="80" alt="Claro">
+        <h3>Soporte Técnico</h3>
+        <button id="callBtn" class="btn" disabled>Cargando SDK...</button>
+        <div id="status">Iniciando servicio...</div>
+    </div>
 
-<div class="card">
-    <img src="https://upload.wikimedia.org/wikipedia/commons/0/09/Logo_Claro_AMX.svg" alt="Claro" class="logo">
-    <h2>Asistencia en Línea</h2>
-    <p>Conéctate con un ejecutivo de Claro ahora mismo.</p>
-    
-    <button id="callBtn" class="btn-call" disabled>
-        <span>Cargando servicio...</span>
-    </button>
-    
-    <div id="status"><span id="statusDot" class="dot"></span> <span id="statusText">Iniciando...</span></div>
-</div>
+    <script>
+        // REEMPLAZA ESTOS VALORES
+        const TOKEN = 'NmZhM2FiNTYtNzY0YS00Y2Q0LThhMjUtMmRlODljNGI1Njg0MjcyMWRlZDMtZjYx_P0A1_cbbe27d4-1f60-43cb-819b-fd3749c66621'; 
+        const DESTINO = '856100';
 
-<script>
-    // --- CONFIGURACIÓN ---
-    const ACCESS_TOKEN = 'NmZhM2FiNTYtNzY0YS00Y2Q0LThhMjUtMmRlODljNGI1Njg0MjcyMWRlZDMtZjYx_P0A1_cbbe27d4-1f60-43cb-819b-fd3749c66621'; // Pega aquí el access_token que obtuviste
-    const DESTINO = '856100'; // El número de tu cola de Customer Assist
+        let client;
 
-    let callingClient;
-    const btn = document.getElementById('callBtn');
-    const statusText = document.getElementById('statusText');
-    const statusDot = document.getElementById('statusDot');
-
-    async function initWebex() {
-        try {
-            // 1. Inicializar el cliente
-            callingClient = new WebexCalling.CallingClient({
-                token: ACCESS_TOKEN,
-                logger: console
-            });
-
-            // 2. Registrar el navegador en la red de Webex
-            statusText.innerText = "Registrando...";
-            await callingClient.register();
-
-            // 3. Habilitar el botón
-            statusDot.classList.add('online');
-            statusText.innerText = "Listo para llamar";
-            btn.disabled = false;
-            btn.querySelector('span').innerText = "Llamar ahora";
-
-        } catch (error) {
-            console.error("Error inicializando Webex:", error);
-            statusText.innerText = "Error de conexión";
-            btn.querySelector('span').innerText = "Servicio no disponible";
+        async function start() {
+            try {
+                client = new WebexCalling.CallingClient({ token: TOKEN });
+                await client.register();
+                
+                document.getElementById('callBtn').disabled = false;
+                document.getElementById('callBtn').innerText = 'Llamar a Claro';
+                document.getElementById('status').innerText = 'Conectado y listo';
+            } catch (e) {
+                document.getElementById('status').innerText = 'Error: Revisa el Token o HTTPS';
+                console.error(e);
+            }
         }
-    }
 
-    btn.addEventListener('click', async () => {
-        try {
-            btn.disabled = true;
-            statusText.innerText = "Llamando...";
-            
-            // 4. Realizar la llamada
-            const call = await callingClient.makeCall(DESTINO);
+        document.getElementById('callBtn').onclick = async () => {
+            try {
+                const call = await client.makeCall(DESTINO);
+                document.getElementById('status').innerText = 'Llamando...';
+                call.on('connected', () => document.getElementById('status').innerText = 'En línea');
+            } catch (e) {
+                alert('Error al llamar: ' + e.message);
+            }
+        };
 
-            call.on('connected', () => {
-                statusText.innerText = "En llamada con Claro";
-                btn.querySelector('span').innerText = "Conectado";
-            });
-
-            call.on('disconnected', () => {
-                statusText.innerText = "Llamada finalizada";
-                btn.disabled = false;
-                btn.querySelector('span').innerText = "Llamar de nuevo";
-            });
-
-        } catch (error) {
-            console.error("Error en la llamada:", error);
-            alert("No se pudo iniciar la llamada. Revisa el micrófono.");
-            btn.disabled = false;
-        }
-    });
-
-    // Arrancar el proceso
-    initWebex();
-</script>
-
+        start();
+    </script>
 </body>
 </html>
