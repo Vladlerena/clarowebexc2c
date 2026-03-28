@@ -2,75 +2,94 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>Webex Click to Call Fix</title>
+    <title>Webex Simple Calling</title>
     <script src="webex.min.js"></script>
+    <style>
+        body { font-family: sans-serif; display: flex; flex-direction: column; align-items: center; padding-top: 50px; background: #f4f7f9; }
+        .card { background: white; padding: 2rem; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); width: 350px; }
+        input { width: 100%; padding: 10px; margin: 10px 0; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; }
+        button { width: 100%; padding: 12px; background: #007aa3; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 16px; }
+        button:disabled { background: #ccc; }
+        #log { margin-top: 20px; font-size: 12px; color: #555; text-align: center; }
+    </style>
 </head>
 <body>
-    <div style="text-align:center; margin-top:50px; font-family:sans-serif;">
-        <h2>Webex Calling</h2>
-        <input type="password" id="token" placeholder="Pega tu Token aquí" style="width:300px; padding:10px;"><br><br>
-        <input type="text" id="destino" placeholder="Número: ej +5411..." style="width:300px; padding:10px;"><br><br>
-        
-        <button id="btnAction" onclick="iniciarProceso()" style="padding:15px 30px; cursor:pointer; background:#00d4ff; border:none; border-radius:5px; font-weight:bold;">
-            CONECTAR Y LLAMAR
-        </button>
-        
-        <p id="status" style="color:#666; margin-top:20px;">Estado: Esperando...</p>
-    </div>
 
-    <script>
-        let webexInstance = null;
+<div class="card">
+    <h3>Webex Click2Call</h3>
+    <input type="password" id="token" placeholder="Tu Access Token">
+    <input type="text" id="destino" placeholder="Número o URI (ej: +56...)">
+    <button id="btnCall" onclick="handleCall()">LLAMAR</button>
+    <div id="log">Esperando configuración...</div>
+</div>
 
-        async function iniciarProceso() {
-            const token = document.getElementById('token').value.trim();
-            const destino = document.getElementById('destino').value.trim();
-            const status = document.getElementById('status');
+<script>
+    let webex;
+    let currentCall;
 
-            if (!token || !destino) {
-                alert("Completa los campos");
-                return;
-            }
+    async function handleCall() {
+        const token = document.getElementById('token').value.trim();
+        const destination = document.getElementById('destino').value.trim();
+        const log = document.getElementById('log');
+        const btn = document.getElementById('btnCall');
 
-            try {
-                status.innerText = "Iniciando SDK...";
+        if (!token || !destination) return alert("Faltan datos");
 
-                // 1. Inicialización (Uso de 'Webex' con mayúscula es el estándar del SDK global)
-                webexInstance = Webex.init({
-                    credentials: { access_token: token }
-                });
+        try {
+            // Deshabilitar botón durante el proceso
+            btn.disabled = true;
+            log.innerText = "Inicializando SDK...";
 
-                status.innerText = "Registrando dispositivo...";
-                
-                // 2. IMPORTANTE: El error 'reading register' ocurre aquí si no se usa la ruta correcta.
-                // En versiones modernas es directamente webex.internal.device.register()
-                await webexInstance.internal.device.register();
-                
-                status.innerText = "Registrando servicio de voz...";
-                await webexInstance.phone.register();
+            // 1. Inicializar (Uso de la variable global que crea webex.min.js)
+            webex = Webex.init({
+                credentials: { access_token: token }
+            });
 
-                status.innerText = "Marcando...";
-                const call = webexInstance.phone.dial(destino);
+            // 2. Registro de Dispositivo (PASO CRÍTICO)
+            log.innerText = "Registrando dispositivo en la nube...";
+            await webex.internal.device.register();
+            
+            // 3. Registro del servicio de llamadas
+            log.innerText = "Conectando servicio de voz...";
+            await webex.phone.register();
 
-                call.on('connected', () => {
-                    status.innerText = "¡EN LLAMADA!";
-                    status.style.color = "green";
-                });
+            log.innerText = "Marcando a " + destination + "...";
+            
+            // 4. Realizar la llamada
+            currentCall = webex.phone.dial(destination);
 
-                call.on('disconnected', () => {
-                    status.innerText = "Llamada finalizada";
-                    status.style.color = "#666";
-                });
+            currentCall.on('connected', () => {
+                log.innerText = "¡CONECTADO!";
+                btn.innerText = "COLGAR";
+                btn.style.background = "red";
+                btn.disabled = false;
+                btn.onclick = () => currentCall.hangup();
+            });
 
-                call.on('error', (err) => {
-                    status.innerText = "Error en llamada: " + err.message;
-                });
+            currentCall.on('disconnected', () => {
+                log.innerText = "Llamada finalizada.";
+                resetUI();
+            });
 
-            } catch (error) {
-                console.error(error);
-                status.innerText = "Error: " + error.message;
-                status.style.color = "red";
-            }
+            currentCall.on('error', (err) => {
+                log.innerText = "Error: " + err.message;
+                resetUI();
+            });
+
+        } catch (err) {
+            log.innerText = "Fallo: " + err.message;
+            console.error(err);
+            btn.disabled = false;
         }
-    </script>
+    }
+
+    function resetUI() {
+        const btn = document.getElementById('btnCall');
+        btn.innerText = "LLAMAR";
+        btn.style.background = "#007aa3";
+        btn.disabled = false;
+        btn.onclick = handleCall;
+    }
+</script>
 </body>
 </html>
