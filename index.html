@@ -3,199 +3,80 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>ConnectNow | Webex Click to Call</title>
+  <title>ConnectNow | Webex Calling</title>
   
-  <script src="https://unpkg.com/jssip@3.10.0/dist/jssip.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jssip/3.10.0/jssip.min.js" crossorigin="anonymous"></script>
   
   <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Exo+2:wght@300;400;600;700&display=swap" rel="stylesheet"/>
   
   <style>
     :root {
-      --bg: #050d1a;
-      --surface: #0a1628;
-      --surface2: #0f1f3d;
-      --border: #1a3a6e;
-      --accent: #00d4ff;
-      --accent2: #0099cc;
-      --green: #00ff88;
-      --red: #ff3b6b;
-      --text: #c8e0ff;
-      --text-dim: #4a6fa5;
-      --mono: 'Share Tech Mono', monospace;
-      --sans: 'Exo 2', sans-serif;
+      --bg: #050d1a; --surface: #0a1628; --border: #1a3a6e;
+      --accent: #00d4ff; --green: #00ff88; --red: #ff3b6b;
+      --text: #c8e0ff; --text-dim: #4a6fa5;
+      --mono: 'Share Tech Mono', monospace; --sans: 'Exo 2', sans-serif;
     }
-
     * { margin: 0; padding: 0; box-sizing: border-box; }
-
     body {
-      background: var(--bg);
-      color: var(--text);
-      font-family: var(--sans);
-      min-height: 100vh;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      overflow-x: hidden;
+      background: var(--bg); color: var(--text); font-family: var(--sans);
+      min-height: 100vh; display: flex; flex-direction: column; align-items: center;
     }
-
-    body::before {
-      content: '';
-      position: fixed;
-      inset: 0;
-      background-image:
-        linear-gradient(rgba(0,212,255,0.03) 1px, transparent 1px),
-        linear-gradient(90deg, rgba(0,212,255,0.03) 1px, transparent 1px);
-      background-size: 40px 40px;
-      pointer-events: none;
-      z-index: 0;
-    }
-
-    .page {
-      position: relative;
-      z-index: 1;
-      width: 100%;
-      max-width: 520px;
-      padding: 40px 20px 60px;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 32px;
-    }
-
-    header {
-      width: 100%;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 8px;
-      animation: fadeDown 0.7s ease both;
-    }
-
-    .logo-row { display: flex; align-items: center; gap: 12px; }
-    .logo-icon {
-      width: 44px; height: 44px; border-radius: 12px;
-      background: linear-gradient(135deg, #005f88, #00aad4);
-      display: flex; align-items: center; justify-content: center;
-      box-shadow: 0 0 20px rgba(0,212,255,0.3);
-    }
-    .logo-icon svg { width: 24px; height: 24px; fill: #fff; }
-    .company-name { font-size: 22px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; color: #fff; }
-    .tagline { font-family: var(--mono); font-size: 11px; color: var(--text-dim); letter-spacing: 3px; text-transform: uppercase; }
-    .divider { width: 100%; height: 1px; background: linear-gradient(90deg, transparent, var(--border), transparent); }
-
-    .config-panel, .call-panel, .history-panel, .debug-panel {
-      width: 100%; background: var(--surface); border: 1px solid var(--border);
-      border-radius: 16px; padding: 24px; position: relative; overflow: hidden;
-    }
-
-    .config-panel::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px; background: linear-gradient(90deg, transparent, var(--accent), transparent); }
-
-    .section-label {
-      font-family: var(--mono); font-size: 10px; letter-spacing: 3px; color: var(--accent);
-      text-transform: uppercase; margin-bottom: 16px; display: flex; align-items: center; gap: 8px;
-    }
-
-    .field-group { display: flex; flex-direction: column; gap: 12px; }
-    .field { display: flex; flex-direction: column; gap: 6px; }
-    label { font-family: var(--mono); font-size: 11px; color: var(--text-dim); }
+    .page { width: 100%; max-width: 500px; padding: 40px 20px; display: flex; flex-direction: column; gap: 25px; z-index: 1; }
+    .card { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 24px; }
+    .section-label { font-family: var(--mono); font-size: 10px; color: var(--accent); text-transform: uppercase; margin-bottom: 15px; }
     input {
-      background: var(--bg); border: 1px solid var(--border); border-radius: 8px;
-      color: var(--text); font-family: var(--mono); font-size: 13px; padding: 10px 14px; outline: none; width: 100%;
+      width: 100%; background: #020810; border: 1px solid var(--border); border-radius: 8px;
+      color: #fff; font-family: var(--mono); padding: 10px; margin-bottom: 10px; outline: none;
     }
-    input:focus { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(0,212,255,0.12); }
-
-    .status-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--text-dim); display: inline-block; margin-right: 5px; }
-    .status-dot.ready { background: var(--green); box-shadow: 0 0 8px var(--green); }
-    .status-dot.error { background: var(--red); box-shadow: 0 0 8px var(--red); }
-    .status-text { font-family: var(--mono); font-size: 11px; color: var(--text-dim); }
-    .status-text.ready { color: var(--green); }
+    input:focus { border-color: var(--accent); }
+    .status-text { font-family: var(--mono); font-size: 11px; }
+    .status-text.ok { color: var(--green); }
     .status-text.error { color: var(--red); }
-
-    .call-panel { align-items: center; display: flex; flex-direction: column; gap: 20px; }
-    .dest-number { font-family: var(--mono); font-size: 28px; color: #fff; letter-spacing: 2px; }
     
     .call-btn {
-      width: 100px; height: 100px; border-radius: 50%; border: 2px solid var(--green);
-      background: radial-gradient(circle, #005533, #001a0d); cursor: pointer;
-      display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 5px;
+      width: 100%; padding: 15px; border-radius: 12px; border: 2px solid var(--green);
+      background: rgba(0, 255, 136, 0.1); color: var(--green); cursor: pointer;
+      font-family: var(--mono); font-weight: bold; transition: all 0.3s;
     }
-    .call-btn:disabled { opacity: 0.3; cursor: not-allowed; filter: grayscale(1); }
-    .call-btn.in-call { border-color: var(--red); background: radial-gradient(circle, #550011, #1a0008); }
-    .call-btn svg { width: 30px; height: 30px; }
-    .btn-label { font-family: var(--mono); font-size: 10px; color: inherit; }
+    .call-btn:disabled { opacity: 0.2; cursor: not-allowed; }
+    .call-btn.in-call { border-color: var(--red); color: var(--red); background: rgba(255, 59, 107, 0.1); }
 
     .debug-log {
-      background: #020810; border: 1px solid var(--border); border-radius: 8px;
-      padding: 10px; max-height: 150px; overflow-y: auto; font-family: var(--mono); font-size: 11px;
+      background: #000; border: 1px solid #111; padding: 10px; height: 150px;
+      overflow-y: auto; font-family: var(--mono); font-size: 10px; line-height: 1.4;
     }
-    .log-time { color: var(--text-dim); margin-right: 8px; }
+    .log-info { color: var(--text-dim); }
     .log-ok { color: var(--green); }
     .log-error { color: var(--red); }
-    .debug-actions { display: flex; gap: 10px; margin-top: 10px; flex-wrap: wrap; }
-    .debug-btn { 
-        flex: 1; background: var(--surface2); border: 1px solid var(--border); 
-        color: var(--text); padding: 8px; font-family: var(--mono); font-size: 10px; cursor: pointer;
-    }
-
-    @keyframes fadeDown { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
   </style>
 </head>
 <body>
 
 <div class="page">
-  <header>
-    <div class="logo-row">
-      <div class="logo-icon">
-        <svg viewBox="0 0 24 24"><path d="M6.62 10.79a15.05 15.05 0 0 0 6.59 6.59l2.2-2.2a1 1 0 0 1 1.01-.24 11.47 11.47 0 0 0 3.58.57A1 1 0 0 1 21 16.5v3.5a1 1 0 0 1-1 1A17 17 0 0 1 3 4a1 1 0 0 1 1-1h3.5a1 1 0 0 1 1 .99 11.47 11.47 0 0 0 .57 3.58 1 1 0 0 1-.25 1.01Z"/></svg>
-      </div>
-      <span class="company-name">ConnectNow</span>
-    </div>
-    <span class="tagline">Webex Calling · Click to Call</span>
+  <header style="text-align: center;">
+    <h2 style="letter-spacing: 2px;">CONNECT NOW</h2>
+    <p style="font-size: 10px; color: var(--text-dim);">WEBEX CALLING ENGINE</p>
   </header>
 
-  <div class="config-panel">
-    <div class="section-label">// Configuración</div>
-    <div class="field-group">
-      <div class="field">
-        <label>WEBEX ACCESS TOKEN</label>
-        <input type="password" id="tokenInput" placeholder="Tu Token OAuth..."/>
-      </div>
-      <div class="field">
-        <label>TU SIP URI</label>
-        <input type="text" id="sipUser" placeholder="usuario@empresa.webex.com"/>
-      </div>
-      <div class="field">
-        <label>DESTINO</label>
-        <input type="text" id="destInput" placeholder="+5411..."/>
-      </div>
-      <div class="status-row">
-        <div class="status-dot" id="statusDot"></div>
-        <span class="status-text" id="statusText">Esperando datos...</span>
-      </div>
-    </div>
+  <div class="card">
+    <div class="section-label">// Credenciales</div>
+    <input type="password" id="tokenInput" placeholder="Webex Access Token">
+    <input type="text" id="sipUser" placeholder="tu-usuario@empresa.webex.com">
+    <input type="text" id="destInput" placeholder="Destino (ej: +5411...)">
+    <div id="statusMsg" class="status-text">Verificando librería...</div>
   </div>
 
-  <div class="call-panel">
-    <div class="dest-number" id="destDisplay">—</div>
-    <button class="call-btn" id="callBtn" disabled onclick="toggleCall()">
-      <svg id="callIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z" fill="var(--green)"/></svg>
-      <span class="btn-label" id="btnLabel">LLAMAR</span>
-    </button>
-    <div id="callTimer" style="font-family:var(--mono); font-size: 14px; color: var(--text-dim);">00:00:00</div>
+  <div class="card" style="text-align: center;">
+    <div style="font-size: 24px; margin-bottom: 15px;" id="destDisplay">—</div>
+    <button class="call-btn" id="callBtn" disabled onclick="toggleCall()">LLAMAR</button>
+    <div id="timer" style="margin-top: 10px; font-family: var(--mono); color: var(--text-dim);">00:00</div>
   </div>
 
-  <div class="debug-panel">
-    <div class="section-label" style="color:#ffcc00">// Debug Log</div>
+  <div class="card">
+    <div class="section-label" style="color:orange">// Debug Console</div>
     <div class="debug-log" id="debugLog"></div>
-    <div class="debug-actions">
-      <button class="debug-btn" onclick="initWebex()" style="border-color: var(--accent);">⚡ CONECTAR SDK</button>
-      <button class="debug-btn" onclick="clearDebug()">LIMPIAR</button>
-    </div>
+    <button onclick="initWebex()" id="connectBtn" disabled style="width:100%; margin-top:10px; padding:8px; font-family:var(--mono); cursor:pointer;">⚡ CONECTAR SIP</button>
   </div>
-
-  <footer style="margin-top: 20px; font-size: 10px; color: var(--text-dim); font-family: var(--mono);">
-    v1.1 · JsSIP Fix · GitHub Pages
-  </footer>
 </div>
 
 <audio id="remoteAudio" autoplay></audio>
@@ -203,43 +84,44 @@
 <script>
   let ua = null;
   let currentCall = null;
-  let callActive = false;
-  let sdkReady = false;
+  let isRegistered = false;
 
-  // LOGS
   function log(msg, type = 'info') {
     const logDiv = document.getElementById('debugLog');
-    const now = new Date().toLocaleTimeString();
     const line = document.createElement('div');
-    line.innerHTML = `<span class="log-time">[${now}]</span> <span class="log-${type}">${msg}</span>`;
+    line.className = `log-${type}`;
+    line.innerHTML = `[${new Date().toLocaleTimeString()}] ${msg}`;
     logDiv.appendChild(line);
     logDiv.scrollTop = logDiv.scrollHeight;
   }
 
-  function clearDebug() { document.getElementById('debugLog').innerHTML = ''; }
+  // ── SISTEMA DE REINTENTOS PARA JSSIP ──
+  function initApp(retries = 10) {
+    const status = document.getElementById('statusMsg');
+    
+    if (typeof JsSIP !== 'undefined') {
+      log('✓ JsSIP cargado exitosamente.', 'ok');
+      status.innerText = 'Librería lista. Ingresa datos.';
+      status.className = 'status-text ok';
+      document.getElementById('connectBtn').disabled = false;
+      return;
+    }
 
-  function setStatus(type, msg) {
-    const dot = document.getElementById('statusDot');
-    const txt = document.getElementById('statusText');
-    dot.className = 'status-dot ' + type;
-    txt.className = 'status-text ' + type;
-    txt.innerText = msg;
+    if (retries > 0) {
+      log(`Esperando JsSIP... (${retries})`, 'info');
+      setTimeout(() => initApp(retries - 1), 1000);
+    } else {
+      log('✗ Error: No se pudo cargar JsSIP. Revisa tu conexión.', 'error');
+      status.innerText = 'Error al cargar librería SIP.';
+      status.className = 'status-text error';
+    }
   }
 
-  // VALIDACIÓN INICIAL
+  // ── INICIALIZACIÓN AL CARGAR ──
   window.onload = () => {
-    if (typeof JsSIP === 'undefined') {
-      log('Error: JsSIP no cargó. Revisa el script en el head.', 'error');
-      setStatus('error', 'Librería faltante');
-    } else {
-      log('Librería JsSIP detectada correctamente.', 'ok');
-      setStatus('', 'Listo para configurar');
-    }
-    
-    document.querySelectorAll('input').forEach(input => {
-        input.addEventListener('input', () => {
-            document.getElementById('destDisplay').innerText = document.getElementById('destInput').value || '—';
-        });
+    initApp();
+    document.getElementById('destInput').addEventListener('input', (e) => {
+      document.getElementById('destDisplay').innerText = e.target.value || '—';
     });
   };
 
@@ -248,76 +130,72 @@
     const sip = document.getElementById('sipUser').value.trim();
 
     if (!token || !sip) {
-      log('Completa Token y SIP URI.', 'error');
+      log('Faltan datos obligatorios.', 'error');
       return;
     }
 
-    log('Iniciando registro SIP...', 'info');
-    setStatus('', 'Conectando...');
-
     try {
+      log('Conectando a WSS: sip2sip.webex.com...', 'info');
       const socket = new JsSIP.WebSocketInterface('wss://sip2sip.webex.com:8443/sip');
       
-      const configuration = {
+      ua = new JsSIP.UA({
         sockets: [socket],
         uri: `sip:${sip}`,
-        password: token, // Webex Calling suele aceptar el token como pass en SIP
+        password: token, // Webex Calling usa el Token como password SIP
         register: true
-      };
-
-      ua = new JsSIP.UA(configuration);
+      });
 
       ua.on('registered', () => {
-        log('✓ Registrado en Webex Calling', 'ok');
-        setStatus('ready', 'Conectado');
-        sdkReady = true;
+        log('✓ Registrado en la nube de Webex.', 'ok');
+        isRegistered = true;
         document.getElementById('callBtn').disabled = false;
+        document.getElementById('statusMsg').innerText = 'Online - Listo para llamar';
       });
 
       ua.on('registrationFailed', (e) => {
-        log('✗ Falló registro: ' + e.cause, 'error');
-        setStatus('error', 'Error Registro');
-        sdkReady = false;
+        log('✗ Error de registro: ' + e.cause, 'error');
+        isRegistered = false;
       });
 
       ua.start();
-    } catch (err) {
-      log('Error Fatal: ' + err.message, 'error');
+    } catch (e) {
+      log('Error de inicio: ' + e.message, 'error');
     }
   }
 
   function toggleCall() {
-    if (!callActive) {
+    if (!currentCall) {
       const dest = document.getElementById('destInput').value.trim();
-      if (!dest) return;
+      log(`Llamando a: ${dest}...`, 'info');
       
       const options = {
-        mediaConstraints: { audio: true, video: false }
+        mediaConstraints: { audio: true, video: false },
+        rtcOfferConstraints: { offerToReceiveAudio: true, offerToReceiveVideo: false }
       };
 
       currentCall = ua.call(`sip:${dest}`, options);
-      
+
       currentCall.on('confirmed', () => {
-        log('Llamada conectada', 'ok');
-        callActive = true;
-        updateUI(true);
+        log('Llamada establecida.', 'ok');
+        document.getElementById('callBtn').innerText = 'COLGAR';
+        document.getElementById('callBtn').classList.add('in-call');
       });
 
       currentCall.on('ended', () => {
-        log('Llamada terminada', 'info');
-        callActive = false;
-        updateUI(false);
+        log('Llamada finalizada.', 'info');
+        resetCallUI();
       });
 
       currentCall.on('failed', (e) => {
         log('Llamada fallida: ' + e.cause, 'error');
-        callActive = false;
-        updateUI(false);
+        resetCallUI();
       });
 
-      // Conectar audio
+      // Vinculación de Audio
       currentCall.connection.addEventListener('track', (e) => {
-        document.getElementById('remoteAudio').srcObject = e.streams[0];
+        if (e.streams[0]) {
+          document.getElementById('remoteAudio').srcObject = e.streams[0];
+        }
       });
 
     } else {
@@ -325,17 +203,12 @@
     }
   }
 
-  function updateUI(active) {
-    const btn = document.getElementById('callBtn');
-    const label = document.getElementById('btnLabel');
-    if (active) {
-      btn.classList.add('in-call');
-      label.innerText = 'COLGAR';
-    } else {
-      btn.classList.remove('in-call');
-      label.innerText = 'LLAMAR';
-    }
+  function resetCallUI() {
+    currentCall = null;
+    document.getElementById('callBtn').innerText = 'LLAMAR';
+    document.getElementById('callBtn').classList.remove('in-call');
   }
 </script>
+
 </body>
 </html>
