@@ -24,62 +24,31 @@
             box-shadow: 0 10px 25px rgba(0,0,0,0.05);
             width: 100%;
             max-width: 400px;
+            text-align: center;
         }
-        h2 {
-            margin-top: 0;
-            color: #121212;
-            font-size: 24px;
-            margin-bottom: 30px;
-        }
+        h2 { margin-top: 0; color: #121212; font-size: 24px; margin-bottom: 30px; }
         input {
-            width: 100%;
-            padding: 12px;
-            margin-bottom: 20px;
-            border: 1px solid #d1d5db;
-            border-radius: 8px;
-            font-size: 16px;
-            box-sizing: border-box;
-            outline: none;
-        }
-        input:focus {
-            border-color: #3b82f6;
-            ring: 2px solid #3b82f6;
+            width: 100%; padding: 12px; margin-bottom: 20px;
+            border: 1px solid #d1d5db; border-radius: 8px;
+            font-size: 16px; box-sizing: border-box; outline: none;
         }
         button {
-            width: 100%;
-            padding: 14px;
-            background-color: #3278a0; /* El azul de tu imagen */
-            color: white;
-            border: none;
-            border-radius: 8px;
-            font-size: 16px;
-            font-weight: 600;
-            cursor: pointer;
+            width: 100%; padding: 14px;
+            background-color: #3278a0; color: white;
+            border: none; border-radius: 8px;
+            font-size: 16px; font-weight: 600; cursor: pointer;
             transition: background 0.2s;
         }
-        button:hover {
-            background-color: #2a6384;
-        }
-        button:disabled {
-            background-color: #9ca3af;
-            cursor: not-allowed;
-        }
-        #status {
-            margin-top: 15px;
-            font-size: 14px;
-            color: #4b5563;
-        }
+        button:disabled { background-color: #9ca3af; cursor: not-allowed; }
+        #status { margin-top: 15px; font-size: 14px; color: #4b5563; min-height: 20px; }
     </style>
 </head>
 <body>
 
     <div class="card">
         <h2>Anexo AA 6100</h2>
-        
         <input type="password" id="tokenInput" placeholder="Pega tu Access Token aquí">
-        
-        <button id="btnCall" onclick="iniciarLlamada()">LLAMAR AL 6100</button>
-        
+        <button id="btnCall" onclick="gestionarLlamada()">LLAMAR AL 6100</button>
         <div id="status">Estado: Desconectado</div>
     </div>
 
@@ -87,13 +56,19 @@
         let webex;
         let activeCall;
 
-        async function iniciarLlamada() {
+        async function gestionarLlamada() {
+            // Si ya hay una llamada, el botón funciona para colgar
+            if (activeCall) {
+                finalizarLlamada();
+                return;
+            }
+
             const token = document.getElementById('tokenInput').value.trim();
             const status = document.getElementById('status');
             const btn = document.getElementById('btnCall');
 
             if (!token) {
-                alert("Por favor, ingresa un Access Token válido.");
+                alert("Por favor, ingresa tu Access Token.");
                 return;
             }
 
@@ -101,22 +76,32 @@
                 btn.disabled = true;
                 status.innerText = "Estado: Inicializando SDK...";
 
-                // 1. Inicializar el SDK
+                // --- INICIALIZACIÓN CON FORZADO DE SERVICIO DE TELÉFONO ---
                 webex = Webex.init({
-                    credentials: {
-                        access_token: token
+                    credentials: { access_token: token },
+                    config: {
+                        phone: {
+                            enablePhoneService: true, // Esto activa el módulo 'phone'
+                            preferredDevice: 'BROWSER'
+                        }
                     }
                 });
 
-                // 2. Registro de dispositivo (Paso Crítico)
+                // Validamos que el SDK cargó los módulos antes de registrar
+                if (!webex.internal || !webex.internal.device) {
+                    throw new Error("El módulo interno no está listo. Revisa tu Token.");
+                }
+
                 status.innerText = "Estado: Registrando dispositivo...";
                 await webex.internal.device.register();
 
-                // 3. Registro del servicio telefónico
                 status.innerText = "Estado: Conectando servicio de voz...";
+                if (!webex.phone) {
+                    throw new Error("El servicio de llamadas no está disponible en este Token.");
+                }
+                
                 await webex.phone.register();
 
-                // 4. Realizar la llamada al AA 6100
                 status.innerText = "Estado: Marcando al 6100...";
                 activeCall = webex.phone.dial('6100');
 
@@ -126,23 +111,22 @@
                     btn.innerText = "FINALIZAR LLAMADA";
                     btn.style.backgroundColor = "#e11d48"; // Rojo
                     btn.disabled = false;
-                    btn.onclick = finalizarLlamada;
                 });
 
                 activeCall.on('disconnected', () => {
                     status.innerText = "Estado: Llamada finalizada";
-                    resetInterfaz();
+                    resetUI();
                 });
 
                 activeCall.on('error', (err) => {
-                    console.error(err);
-                    status.innerText = "Estado: Error - " + err.message;
-                    resetInterfaz();
+                    console.error("Error en llamada:", err);
+                    status.innerText = "Error: " + err.message;
+                    resetUI();
                 });
 
             } catch (error) {
-                console.error(error);
-                status.innerText = "Estado: Error de conexión";
+                console.error("Error General:", error);
+                status.innerText = "Error: " + error.message;
                 btn.disabled = false;
                 alert("Hubo un problema: " + error.message);
             }
@@ -154,12 +138,12 @@
             }
         }
 
-        function resetInterfaz() {
+        function resetUI() {
             const btn = document.getElementById('btnCall');
+            activeCall = null;
             btn.innerText = "LLAMAR AL 6100";
             btn.style.backgroundColor = "#3278a0";
             btn.disabled = false;
-            btn.onclick = iniciarLlamada;
         }
     </script>
 </body>
