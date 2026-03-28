@@ -2,93 +2,46 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>Webex Click2Call v2.0</title>
+    <title>Webex Calling Direct</title>
     <script src="https://unpkg.com/webex@^1/umd/webex.min.js"></script>
-    <style>
-        body { background: #0b0e14; color: #fff; font-family: sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; margin: 0; }
-        .box { background: #161b22; padding: 25px; border-radius: 12px; border: 1px solid #30363d; text-align: center; width: 320px; }
-        #btnCall { width: 100%; padding: 15px; border-radius: 8px; border: none; background: #2ea44f; color: #fff; font-weight: bold; cursor: pointer; }
-        #btnCall:disabled { background: #21262d; color: #484f58; cursor: not-allowed; }
-        #console { margin-top: 15px; font-size: 11px; color: #8b949e; text-align: left; background: #0d1117; padding: 10px; height: 80px; overflow-y: auto; border-radius: 4px; }
-        input { width: 100%; padding: 8px; margin-bottom: 10px; background: #0d1117; border: 1px solid #30363d; color: #fff; border-radius: 4px; box-sizing: border-box; }
-    </style>
 </head>
 <body>
-
-    <div class="box">
-        <h3 style="margin-top:0">Webex Calling</h3>
-        <input type="password" id="tokenIn" placeholder="ZGU2N2MwMjQtYWM3Zi00NWUzLWEyNjAtYzVjMTE4M2U5N2ZiOGM2MmIwMjgtNTNm_P0A1_cbbe27d4-1f60-43cb-819b-fd3749c66621">
-        <input type="text" id="destIn" placeholder="Destino: ej +5411..." value="+56225830869">
-        
-        <button id="btnCall" onclick="iniciarOcall()">INICIAR SDK</button>
-        
-        <div id="console">Esperando acción...</div>
+    <div style="text-align:center; margin-top:50px;">
+        <button id="callBtn" onclick="iniciar()" style="padding:20px; cursor:pointer;">
+            INICIAR LLAMADA
+        </button>
+        <p id="status">Estado: Esperando...</p>
     </div>
 
     <script>
-        let webex = null;
-        let activeCall = null;
-
-        function log(msg) {
-            const c = document.getElementById('console');
-            c.innerHTML += `> ${msg}<br>`;
-            c.scrollTop = c.scrollHeight;
-        }
-
-        async function iniciarOcall() {
-            const token = document.getElementById('tokenIn').value.trim();
-            const destino = document.getElementById('destIn').value.trim();
-
-            if (!token) return log("Error: Falta el Token");
-
-            // Si ya está iniciado, llamamos
-            if (webex && webex.phone.registered) {
-                hacerLlamada(destino);
-                return;
-            }
+        // Esta es la lógica que normalmente iría en el archivo .js separado
+        async function iniciar() {
+            const token = "TU_TOKEN_AQUI";
+            const destino = "NUMERO_DESTINO"; // ej: +5411...
+            const status = document.getElementById('status');
 
             try {
-                log("Iniciando Webex SDK...");
-                webex = Webex.init({
+                status.innerText = "Registrando en Webex...";
+                
+                // Inicializamos el objeto global que trae el SDK
+                const webex = Webex.init({
                     credentials: { access_token: token }
                 });
 
-                log("Registrando dispositivo...");
+                // Estos pasos sustituyen lo que hace el archivo .js de Cisco
                 await webex.internal.device.register();
-                
-                log("Registrando Phone service...");
                 await webex.phone.register();
 
-                log("✓ CONECTADO");
-                document.getElementById('btnCall').innerText = "LLAMAR AHORA";
-                document.getElementById('btnCall').style.background = "#00d4ff";
-            } catch (err) {
-                log("FALLÓ: " + err.message);
-                console.error(err);
+                status.innerText = "Llamando...";
+                const call = webex.phone.dial(destino);
+
+                call.on('connected', () => status.innerText = "¡CONECTADO!");
+                call.on('disconnected', () => status.innerText = "Llamada finalizada");
+                
+            } catch (error) {
+                status.innerText = "Error: " + error.message;
+                console.error(error);
             }
-        }
-
-        function hacerLlamada(destino) {
-            log(`Llamando a ${destino}...`);
-            activeCall = webex.phone.dial(destino);
-
-            activeCall.on('connected', () => {
-                log("CONECTADO: En llamada");
-                document.getElementById('btnCall').innerText = "COLGAR";
-                document.getElementById('btnCall').style.background = "#ff3b6b";
-            });
-
-            activeCall.on('disconnected', () => {
-                log("Llamada finalizada");
-                activeCall = null;
-                document.getElementById('btnCall').innerText = "LLAMAR AHORA";
-                document.getElementById('btnCall').style.background = "#00d4ff";
-            });
-
-            activeCall.on('error', (err) => {
-                log("Error: " + err.message);
-                activeCall = null;
-            });
         }
     </script>
 </body>
