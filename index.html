@@ -2,95 +2,165 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>Webex Simple Calling</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Webex Calling - Anexo 6100</title>
+    
     <script src="webex.min.js"></script>
+    
     <style>
-        body { font-family: sans-serif; display: flex; flex-direction: column; align-items: center; padding-top: 50px; background: #f4f7f9; }
-        .card { background: white; padding: 2rem; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); width: 350px; }
-        input { width: 100%; padding: 10px; margin: 10px 0; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; }
-        button { width: 100%; padding: 12px; background: #007aa3; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 16px; }
-        button:disabled { background: #ccc; }
-        #log { margin-top: 20px; font-size: 12px; color: #555; text-align: center; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: #f8faff;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+        }
+        .card {
+            background: white;
+            padding: 40px;
+            border-radius: 12px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.05);
+            width: 100%;
+            max-width: 400px;
+        }
+        h2 {
+            margin-top: 0;
+            color: #121212;
+            font-size: 24px;
+            margin-bottom: 30px;
+        }
+        input {
+            width: 100%;
+            padding: 12px;
+            margin-bottom: 20px;
+            border: 1px solid #d1d5db;
+            border-radius: 8px;
+            font-size: 16px;
+            box-sizing: border-box;
+            outline: none;
+        }
+        input:focus {
+            border-color: #3b82f6;
+            ring: 2px solid #3b82f6;
+        }
+        button {
+            width: 100%;
+            padding: 14px;
+            background-color: #3278a0; /* El azul de tu imagen */
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        button:hover {
+            background-color: #2a6384;
+        }
+        button:disabled {
+            background-color: #9ca3af;
+            cursor: not-allowed;
+        }
+        #status {
+            margin-top: 15px;
+            font-size: 14px;
+            color: #4b5563;
+        }
     </style>
 </head>
 <body>
-<div class="card">
-    <h3>Anexo AA 6100</h3>
-    <input type="password" id="token" placeholder="MmQ4NDExN2UtZDRmMS00N2VhLTkwMjUtNjNkYjI0NTAzY2FhNjk5OWI0ZjItNDQx_P0A1_cbbe27d4-1f60-43cb-819b-fd3749c66621">
-    
-    <button id="btnCall" onclick="llamarAl6100()">LLAMAR AL 6100</button>
-    
-    <div id="status">Estado: Desconectado</div>
-</div>
 
+    <div class="card">
+        <h2>Anexo AA 6100</h2>
+        
+        <input type="password" id="tokenInput" placeholder="Pega tu Access Token aquí">
+        
+        <button id="btnCall" onclick="iniciarLlamada()">LLAMAR AL 6100</button>
+        
+        <div id="status">Estado: Desconectado</div>
+    </div>
 
-<script>
-    let webex;
-    let currentCall;
+    <script>
+        let webex;
+        let activeCall;
 
-    async function handleCall() {
-        const token = document.getElementById('token').value.trim();
-        const destination = document.getElementById('destino').value.trim();
-        const log = document.getElementById('log');
-        const btn = document.getElementById('btnCall');
+        async function iniciarLlamada() {
+            const token = document.getElementById('tokenInput').value.trim();
+            const status = document.getElementById('status');
+            const btn = document.getElementById('btnCall');
 
-        if (!token || !destination) return alert("Faltan datos");
+            if (!token) {
+                alert("Por favor, ingresa un Access Token válido.");
+                return;
+            }
 
-        try {
-            // Deshabilitar botón durante el proceso
-            btn.disabled = true;
-            log.innerText = "Inicializando SDK...";
+            try {
+                btn.disabled = true;
+                status.innerText = "Estado: Inicializando SDK...";
 
-            // 1. Inicializar (Uso de la variable global que crea webex.min.js)
-            webex = Webex.init({
-                credentials: { access_token: token }
-            });
+                // 1. Inicializar el SDK
+                webex = Webex.init({
+                    credentials: {
+                        access_token: token
+                    }
+                });
 
-            // 2. Registro de Dispositivo (PASO CRÍTICO)
-            log.innerText = "Registrando dispositivo en la nube...";
-            await webex.internal.device.register();
-            
-            // 3. Registro del servicio de llamadas
-            log.innerText = "Conectando servicio de voz...";
-            await webex.phone.register();
+                // 2. Registro de dispositivo (Paso Crítico)
+                status.innerText = "Estado: Registrando dispositivo...";
+                await webex.internal.device.register();
 
-            log.innerText = "Marcando a " + destination + "...";
-            
-            // 4. Realizar la llamada
-            currentCall = webex.phone.dial(destination);
+                // 3. Registro del servicio telefónico
+                status.innerText = "Estado: Conectando servicio de voz...";
+                await webex.phone.register();
 
-            currentCall.on('connected', () => {
-                log.innerText = "¡CONECTADO!";
-                btn.innerText = "COLGAR";
-                btn.style.background = "red";
+                // 4. Realizar la llamada al AA 6100
+                status.innerText = "Estado: Marcando al 6100...";
+                activeCall = webex.phone.dial('6100');
+
+                // Eventos de la llamada
+                activeCall.on('connected', () => {
+                    status.innerText = "Estado: ¡CONECTADO AL 6100!";
+                    btn.innerText = "FINALIZAR LLAMADA";
+                    btn.style.backgroundColor = "#e11d48"; // Rojo
+                    btn.disabled = false;
+                    btn.onclick = finalizarLlamada;
+                });
+
+                activeCall.on('disconnected', () => {
+                    status.innerText = "Estado: Llamada finalizada";
+                    resetInterfaz();
+                });
+
+                activeCall.on('error', (err) => {
+                    console.error(err);
+                    status.innerText = "Estado: Error - " + err.message;
+                    resetInterfaz();
+                });
+
+            } catch (error) {
+                console.error(error);
+                status.innerText = "Estado: Error de conexión";
                 btn.disabled = false;
-                btn.onclick = () => currentCall.hangup();
-            });
-
-            currentCall.on('disconnected', () => {
-                log.innerText = "Llamada finalizada.";
-                resetUI();
-            });
-
-            currentCall.on('error', (err) => {
-                log.innerText = "Error: " + err.message;
-                resetUI();
-            });
-
-        } catch (err) {
-            log.innerText = "Fallo: " + err.message;
-            console.error(err);
-            btn.disabled = false;
+                alert("Hubo un problema: " + error.message);
+            }
         }
-    }
 
-    function resetUI() {
-        const btn = document.getElementById('btnCall');
-        btn.innerText = "LLAMAR";
-        btn.style.background = "#007aa3";
-        btn.disabled = false;
-        btn.onclick = handleCall;
-    }
-</script>
+        function finalizarLlamada() {
+            if (activeCall) {
+                activeCall.hangup();
+            }
+        }
+
+        function resetInterfaz() {
+            const btn = document.getElementById('btnCall');
+            btn.innerText = "LLAMAR AL 6100";
+            btn.style.backgroundColor = "#3278a0";
+            btn.disabled = false;
+            btn.onclick = iniciarLlamada;
+        }
+    </script>
 </body>
 </html>
