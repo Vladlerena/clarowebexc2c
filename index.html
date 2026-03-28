@@ -9,57 +9,89 @@
     
     <style>
         body {
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-            background-color: #f8faff;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            height: 100vh;
-            margin: 0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background-color: #f0f4f8;
+            display: flex; justify-content: center; align-items: center;
+            height: 100vh; margin: 0;
         }
         .card {
-            background: white;
-            padding: 40px;
-            border-radius: 12px;
-            box-shadow: 0 10px 25px rgba(0,0,0,0.05);
-            width: 100%;
-            max-width: 400px;
-            text-align: center;
+            background: white; padding: 40px; border-radius: 16px;
+            box-shadow: 0 15px 35px rgba(0,0,0,0.1);
+            width: 100%; max-width: 380px; text-align: center;
         }
-        h2 { margin-top: 0; color: #121212; font-size: 24px; margin-bottom: 30px; }
+        h2 { color: #1a1a1b; margin-bottom: 10px; font-size: 22px; }
+        p { color: #6b7280; font-size: 14px; margin-bottom: 25px; }
+        
+        .status-box {
+            background: #f9fafb; border: 1px solid #e5e7eb;
+            padding: 12px; border-radius: 8px; margin-bottom: 20px;
+            font-size: 13px; color: #374151; min-height: 20px;
+        }
+
         input {
-            width: 100%; padding: 12px; margin-bottom: 20px;
+            width: 100%; padding: 12px; margin-bottom: 15px;
             border: 1px solid #d1d5db; border-radius: 8px;
-            font-size: 16px; box-sizing: border-box; outline: none;
+            box-sizing: border-box; font-size: 14px;
         }
-        button {
-            width: 100%; padding: 14px;
+
+        .btn-call {
+            width: 100%; padding: 15px;
             background-color: #3278a0; color: white;
             border: none; border-radius: 8px;
             font-size: 16px; font-weight: 600; cursor: pointer;
-            transition: background 0.2s;
+            transition: all 0.3s;
         }
-        button:disabled { background-color: #9ca3af; cursor: not-allowed; }
-        #status { margin-top: 15px; font-size: 14px; color: #4b5563; min-height: 20px; }
+        .btn-call:hover { background-color: #265d7d; }
+        .btn-call:disabled { background-color: #9ca3af; cursor: not-allowed; }
+
+        .oauth-link {
+            display: block; margin-top: 20px;
+            font-size: 13px; color: #2563eb; text-decoration: none;
+            font-weight: 500;
+        }
+        .oauth-link:hover { text-decoration: underline; }
     </style>
 </head>
 <body>
 
     <div class="card">
         <h2>Anexo AA 6100</h2>
-        <input type="password" id="tokenInput" placeholder="Pega tu Access Token aquí">
-        <button id="btnCall" onclick="gestionarLlamada()">LLAMAR AL 6100</button>
-        <div id="status">Estado: Desconectado</div>
+        <p>Click-to-Call System</p>
+        
+        <div id="status" class="status-box">Estado: Esperando Token...</div>
+
+        <input type="password" id="tokenInput" placeholder="Token se cargará aquí...">
+        
+        <button id="btnCall" onclick="gestionarAccion()" class="btn-call">LLAMAR AL 6100</button>
+        
+        <a href="https://webexapis.com/v1/authorize?client_id=C6b8299f6b12f82cec3482504e820982d6f501b66a0290d70868b782f942368c2&response_type=code&redirect_uri=https%3A%2F%2Fvladlerena.github.io%2F&scope=spark%3Akms%20spark%3Apeople_read%20spark%3Awebrtc_calling&state=set_state_here">
+            🔑 Autorizar cuenta Webex
+        </a>
     </div>
 
     <script>
         let webex;
         let activeCall;
 
-        async function gestionarLlamada() {
-            // Si ya hay una llamada, el botón funciona para colgar
+        // --- 1. DETECTOR AUTOMÁTICO DE TOKEN (OAuth Receptor) ---
+        window.onload = () => {
+            const hash = window.location.hash;
+            if (hash && hash.includes('access_token')) {
+                const params = new URLSearchParams(hash.replace('#', '?'));
+                const token = params.get('access_token');
+                if (token) {
+                    document.getElementById('tokenInput').value = token;
+                    document.getElementById('status').innerText = "✅ Token obtenido correctamente.";
+                    // Limpiamos la URL para seguridad
+                    window.history.replaceState({}, document.title, window.location.pathname);
+                }
+            }
+        };
+
+        // --- 2. LÓGICA DE LLAMADA ---
+        async function gestionarAccion() {
             if (activeCall) {
-                finalizarLlamada();
+                activeCall.hangup();
                 return;
             }
 
@@ -68,73 +100,55 @@
             const btn = document.getElementById('btnCall');
 
             if (!token) {
-                alert("Por favor, ingresa tu Access Token.");
+                alert("Primero haz clic en 'Autorizar cuenta Webex'");
                 return;
             }
 
             try {
                 btn.disabled = true;
-                status.innerText = "Estado: Inicializando SDK...";
+                status.innerText = "🔄 Inicializando SDK...";
 
-                // --- INICIALIZACIÓN CON FORZADO DE SERVICIO DE TELÉFONO ---
                 webex = Webex.init({
                     credentials: { access_token: token },
                     config: {
                         phone: {
-                            enablePhoneService: true, // Esto activa el módulo 'phone'
+                            enablePhoneService: true,
                             preferredDevice: 'BROWSER'
                         }
                     }
                 });
 
-                // Validamos que el SDK cargó los módulos antes de registrar
-                if (!webex.internal || !webex.internal.device) {
-                    throw new Error("El módulo interno no está listo. Revisa tu Token.");
-                }
-
-                status.innerText = "Estado: Registrando dispositivo...";
+                status.innerText = "🔄 Registrando dispositivo...";
                 await webex.internal.device.register();
 
-                status.innerText = "Estado: Conectando servicio de voz...";
-                if (!webex.phone) {
-                    throw new Error("El servicio de llamadas no está disponible en este Token.");
-                }
-                
+                status.innerText = "🔄 Conectando voz...";
                 await webex.phone.register();
 
-                status.innerText = "Estado: Marcando al 6100...";
+                status.innerText = "📞 Marcando al 6100...";
                 activeCall = webex.phone.dial('6100');
 
-                // Eventos de la llamada
                 activeCall.on('connected', () => {
-                    status.innerText = "Estado: ¡CONECTADO AL 6100!";
-                    btn.innerText = "FINALIZAR LLAMADA";
-                    btn.style.backgroundColor = "#e11d48"; // Rojo
+                    status.innerText = "🟢 EN LLAMADA CON AA 6100";
+                    btn.innerText = "COLGAR";
+                    btn.style.backgroundColor = "#dc2626";
                     btn.disabled = false;
                 });
 
                 activeCall.on('disconnected', () => {
-                    status.innerText = "Estado: Llamada finalizada";
+                    status.innerText = "⚪ Llamada finalizada";
                     resetUI();
                 });
 
                 activeCall.on('error', (err) => {
-                    console.error("Error en llamada:", err);
-                    status.innerText = "Error: " + err.message;
+                    console.error(err);
+                    status.innerText = "❌ Error: " + err.message;
                     resetUI();
                 });
 
             } catch (error) {
-                console.error("Error General:", error);
-                status.innerText = "Error: " + error.message;
+                console.error(error);
+                status.innerText = "❌ Error: " + (error.message || "No autorizado");
                 btn.disabled = false;
-                alert("Hubo un problema: " + error.message);
-            }
-        }
-
-        function finalizarLlamada() {
-            if (activeCall) {
-                activeCall.hangup();
             }
         }
 
