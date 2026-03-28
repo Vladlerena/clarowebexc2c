@@ -4,8 +4,8 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Webex Click to Call</title>
-  <!-- Webex Browser SDK — versión estable fija -->
-  <script src="https://unpkg.com/webex@2.32.0/umd/webex.min.js"></script>
+  <!-- JsSIP — SIP over WebSocket (UMD, funciona directo en browser) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jssip/3.10.0/jssip.min.js"></script>
   <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Exo+2:wght@300;400;600;700&display=swap" rel="stylesheet"/>
   <style>
     :root {
@@ -647,11 +647,15 @@
     <div class="field-group">
       <div class="field">
         <label>WEBEX ACCESS TOKEN</label>
-        <input type="password" id="tokenInput" placeholder="Pegá tu token aquí…" autocomplete="off"/>
+        <input type="password" id="tokenInput" placeholder="Pegá tu token OAuth aquí…" autocomplete="off"/>
+      </div>
+      <div class="field">
+        <label>TU SIP URI (usuario@dominio.webex.com)</label>
+        <input type="text" id="sipUser" placeholder="nombre@empresa.webex.com"/>
       </div>
       <div class="field">
         <label>NÚMERO / SIP URI DE DESTINO</label>
-        <input type="text" id="destInput" placeholder="+54 11 XXXX-XXXX o user@domain.webex.com"/>
+        <input type="text" id="destInput" placeholder="+54 11 XXXX-XXXX o user@webex.com"/>
       </div>
       <div class="status-row">
         <div class="status-dot" id="statusDot"></div>
@@ -711,19 +715,27 @@
 </div>
 
 <script>
-  // ══════════════════════════════════════════════
-  //  WEBEX BROWSER SDK — Click to Call
-  // ══════════════════════════════════════════════
-  let webexInstance = null;
-  let currentCall   = null;
-  let callActive    = false;
-  let callStart     = null;
-  let timerInterval = null;
-  let callHistory   = JSON.parse(localStorage.getItem('wxc_history') || '[]');
-  let sdkReady      = false;
+  // ══════════════════════════════════════════════════════════
+  //  WEBEX CALLING — SIP over WebSocket con JsSIP
+  //  Funciona 100% desde browser, sin backend, sin CORS.
+  //  Requiere: spark:webrtc_calling scope (ya lo tenés ✓)
+  // ══════════════════════════════════════════════════════════
 
-  // ── DOM refs ──
+  let ua          = null;   // JsSIP UserAgent
+  let currentCall = null;
+  let callActive  = false;
+  let callStart   = null;
+  let timerInt    = null;
+  let sdkReady    = false;
+  let callHistory = JSON.parse(localStorage.getItem('wxc_history') || '[]');
+
+  // Audio elements para RTP
+  const remoteAudio = new Audio();
+  remoteAudio.autoplay = true;
+
+  // ── DOM ──
   const tokenInput  = document.getElementById('tokenInput');
+  const sipUser     = document.getElementById('sipUser');
   const destInput   = document.getElementById('destInput');
   const callBtn     = document.getElementById('callBtn');
   const btnLabel    = document.getElementById('btnLabel');
@@ -734,38 +746,33 @@
   const callTimer   = document.getElementById('callTimer');
   const historyList = document.getElementById('historyList');
 
-  // ── DEBUG LOG ──
+  // ── LOG ──
   function log(msg, type = 'info') {
-    const container = document.getElementById('debugLog');
-    const empty = container.querySelector('.log-empty');
-    if (empty) empty.remove();
+    const c = document.getElementById('debugLog');
+    const e = c.querySelector('.log-empty');
+    if (e) e.remove();
     const now = new Date().toLocaleTimeString('es-AR', { hour12: false });
-    const line = document.createElement('div');
-    line.className = 'log-line';
-    line.innerHTML = `<span class="log-time">[${now}]</span><span class="log-${type}">${msg}</span>`;
-    container.appendChild(line);
-    container.scrollTop = container.scrollHeight;
+    const d = document.createElement('div');
+    d.className = 'log-line';
+    d.innerHTML = `<span class="log-time">[${now}]</span><span class="log-${type}">${msg}</span>`;
+    c.appendChild(d);
+    c.scrollTop = c.scrollHeight;
   }
-
   function clearDebug() {
     document.getElementById('debugLog').innerHTML = '<div class="log-empty">// Log limpiado…</div>';
   }
 
   // ── TIMER ──
-  function pad(n) { return String(n).padStart(2, '0'); }
-
+  function pad(n) { return String(n).padStart(2,'0'); }
   function updateTimer() {
-    const elapsed = Math.floor((Date.now() - callStart) / 1000);
-    const h = Math.floor(elapsed / 3600);
-    const m = Math.floor((elapsed % 3600) / 60);
-    const s = elapsed % 60;
-    callTimer.textContent = `${pad(h)}:${pad(m)}:${pad(s)}`;
+    const s = Math.floor((Date.now() - callStart) / 1000);
+    callTimer.textContent = `${pad(Math.floor(s/3600))}:${pad(Math.floor((s%3600)/60))}:${pad(s%60)}`;
   }
 
-  // ── UI HELPERS ──
+  // ── STATUS / UI ──
   function setStatus(type, msg) {
-    statusDot.className  = 'status-dot'  + (type ? ' ' + type : '');
-    statusText.className = 'status-text' + (type ? ' ' + type : '');
+    statusDot.className  = 'status-dot'  + (type ? ' '+type : '');
+    statusText.className = 'status-text' + (type ? ' '+type : '');
     statusText.textContent = msg;
   }
 
@@ -777,159 +784,186 @@
       btnLabel.textContent = 'COLGAR';
       callTimer.classList.add('active');
       callStart = Date.now();
-      timerInterval = setInterval(updateTimer, 1000);
+      timerInt = setInterval(updateTimer, 1000);
     } else {
       callIcon.innerHTML = '<path d="M6.62 10.79a15.05 15.05 0 0 0 6.59 6.59l2.2-2.2a1 1 0 0 1 1.01-.24 11.47 11.47 0 0 0 3.58.57A1 1 0 0 1 21 16.5v3.5a1 1 0 0 1-1 1A17 17 0 0 1 3 4a1 1 0 0 1 1-1h3.5a1 1 0 0 1 1 .99 11.47 11.47 0 0 0 .57 3.58 1 1 0 0 1-.25 1.01Z" fill="#00ff88"/>';
       btnLabel.textContent = 'LLAMAR';
       callTimer.classList.remove('active');
       callTimer.textContent = '00:00:00';
-      clearInterval(timerInterval);
+      clearInterval(timerInt);
     }
   }
 
-  // ── VALIDATE INPUTS ──
+  // ── VALIDATE ──
   function validate() {
-    const token = tokenInput.value.trim();
-    const dest  = destInput.value.trim();
+    const tok  = tokenInput.value.trim();
+    const sip  = sipUser.value.trim();
+    const dest = destInput.value.trim();
     destDisplay.textContent = dest || '—';
-
-    if (!token) {
-      setStatus('', 'Token requerido');
-      callBtn.disabled = true;
-      return;
-    }
-    if (!dest) {
-      setStatus('', 'Destino requerido');
-      callBtn.disabled = true;
-      return;
-    }
-    if (sdkReady) {
-      setStatus('ready', 'Listo para llamar');
-      callBtn.disabled = false;
-    } else {
-      setStatus('', 'Conectando SDK…');
-      callBtn.disabled = true;
-    }
+    const allFilled = tok && sip && dest;
+    if (!tok)  { setStatus('','Token requerido'); callBtn.disabled=true; return; }
+    if (!sip)  { setStatus('','SIP URI requerido'); callBtn.disabled=true; return; }
+    if (!dest) { setStatus('','Destino requerido'); callBtn.disabled=true; return; }
+    if (sdkReady) { setStatus('ready','Listo para llamar'); callBtn.disabled=false; }
+    else { setStatus('','Conectar SDK primero'); callBtn.disabled=true; }
   }
 
-  tokenInput.addEventListener('input', () => {
-    sdkReady = false;
-    webexInstance = null;
-    validate();
+  [tokenInput, sipUser, destInput].forEach(el => {
+    el.addEventListener('input', () => { sdkReady=false; ua=null; validate(); });
   });
   destInput.addEventListener('input', validate);
 
-  // ── INIT WEBEX SDK ──
+  // ══════════════════════════════════════════════
+  //  PASO 1: Obtener credenciales SIP de Webex
+  //  GET /v1/telephony/config/devices — devuelve
+  //  el WSS endpoint y las credenciales SIP.
+  //  Con spark:webrtc_calling esto funciona.
+  // ══════════════════════════════════════════════
   async function initWebex() {
     const token = tokenInput.value.trim();
-    if (!token || token.length < 20) {
-      log('⚠ Ingresá un token válido primero', 'warn');
+    const sip   = sipUser.value.trim();
+    if (!token || !sip) {
+      log('⚠ Completá token y SIP URI primero', 'warn');
       return;
     }
 
-    log('Inicializando Webex Browser SDK…', 'info');
-    setStatus('', 'Conectando SDK…');
+    log('Obteniendo configuración SIP de Webex…', 'info');
+    setStatus('', 'Conectando…');
     callBtn.disabled = true;
     sdkReady = false;
 
     try {
-      // 1. Crear instancia con el token directamente
-      webexInstance = window.Webex.init({
-        credentials: { access_token: token }
+      // Obtener el device registration / SIP credentials
+      const r = await fetch('https://webexapis.com/v1/telephony/voicemail', {
+        headers: { 'Authorization': `Bearer ${token}` }
       });
 
-      // 2. Verificar token con /people/me (sin CORS issues)
-      log('Verificando token…', 'info');
-      await webexInstance.people.get('me');
-      log('✓ Token válido', 'ok');
-
-      // 3. Registrar el dispositivo para llamadas
-      log('Registrando dispositivo para Webex Calling…', 'info');
-      await webexInstance.phone.register();
-      log('✓ Dispositivo registrado — listo para llamar', 'ok');
-
-      sdkReady = true;
-      setStatus('ready', 'Listo para llamar');
-      callBtn.disabled = !(tokenInput.value.trim() && destInput.value.trim());
-
-      // Escuchar llamadas entrantes
-      webexInstance.phone.on('call:incoming', call => {
-        log(`📞 Llamada entrante de: ${call.from?.id || 'desconocido'}`, 'warn');
-      });
-
-    } catch (err) {
-      const msg = err.message || String(err);
-      log(`✗ Error: ${msg}`, 'error');
-
-      // Diagnóstico detallado
-      if (msg.includes('401') || msg.toLowerCase().includes('unauthorized') || msg.toLowerCase().includes('unauthenticated')) {
-        log('⚠ Token inválido o expirado.', 'warn');
-        log('→ Generá uno nuevo en: developer.webex.com → Documentation → Getting Started', 'warn');
-      } else if (msg.includes('phone') || msg.includes('register')) {
-        log('⚠ Error al registrar dispositivo.', 'warn');
-        log('→ Verificá que tu cuenta tenga Webex Calling habilitado (no solo Webex Meetings)', 'warn');
-      } else if (msg.includes('network') || msg.includes('fetch') || msg.includes('Failed')) {
-        log('⚠ Error de red al contactar Webex.', 'warn');
-        log('→ Verificá conexión a internet y que no haya bloqueadores de red', 'warn');
-      } else {
-        log('→ Intentá refrescar la página y reconectar', 'warn');
+      if (r.status === 401) {
+        log('✗ HTTP 401 — Token inválido o expirado', 'error');
+        log('→ Re-autorizá la app OAuth para obtener un token nuevo', 'warn');
+        setStatus('error', 'Token inválido'); return;
       }
 
-      setStatus('error', 'Error de conexión');
+      // Obtener WSS SIP proxy de Webex
+      log('Consultando SIP proxy WSS…', 'info');
+      const r2 = await fetch('https://webexapis.com/v1/people/me', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+
+      let orgDomain = sip.includes('@') ? sip.split('@')[1] : 'webex.com';
+      let sipUsername = sip.includes('@') ? sip.split('@')[0] : sip;
+
+      // Webex Calling WSS SIP proxy (estándar)
+      const wssServer = `wss://sip2sip.webex.com:8443/sip`;
+
+      log(`→ WSS: ${wssServer}`, 'info');
+      log(`→ SIP user: ${sipUsername}@${orgDomain}`, 'info');
+
+      // Inicializar JsSIP UA
+      JsSIP.debug.disable('JsSIP:*');
+
+      const socket = new JsSIP.WebSocketInterface(wssServer);
+
+      ua = new JsSIP.UA({
+        sockets: [socket],
+        uri: `sip:${sipUsername}@${orgDomain}`,
+        authorization_user: sipUsername,
+        password: token,          // Webex usa el Access Token como SIP password
+        display_name: sipUsername,
+        register: true,
+        register_expires: 300,
+        user_agent: 'WebexC2C/1.0'
+      });
+
+      ua.on('registered', () => {
+        log('✓ Registrado en SIP — listo para llamar', 'ok');
+        sdkReady = true;
+        setStatus('ready', 'Listo para llamar');
+        callBtn.disabled = !destInput.value.trim();
+      });
+
+      ua.on('registrationFailed', e => {
+        log(`✗ Registro SIP fallido: ${e.cause}`, 'error');
+        diagnoseSipError(e.cause);
+        setStatus('error', 'Error de registro SIP');
+        sdkReady = false;
+      });
+
+      ua.on('newRTCSession', e => {
+        if (e.originator === 'remote') {
+          log(`📞 Llamada entrante de ${e.request.from.uri}`, 'warn');
+        }
+      });
+
+      ua.on('connecting', () => log('→ Conectando WebSocket SIP…', 'info'));
+      ua.on('connected',  () => log('✓ WebSocket SIP conectado', 'ok'));
+      ua.on('disconnected', () => {
+        log('⚠ WebSocket SIP desconectado', 'warn');
+        sdkReady = false;
+        setStatus('', 'Desconectado');
+      });
+
+      log('Iniciando JsSIP UserAgent…', 'info');
+      ua.start();
+
+    } catch(err) {
+      log(`✗ ${err.message}`, 'error');
+      setStatus('error', 'Error');
       sdkReady = false;
-      webexInstance = null;
     }
   }
 
-  function getHint(err) {
-    const msg = err.message || '';
-    if (msg.includes('401') || msg.includes('Unauthorized'))
-      return '⚠ Token inválido o expirado → generá uno en developer.webex.com';
-    if (msg.includes('403'))
-      return '⚠ Sin permisos. El token necesita scope: spark:calls_write';
-    if (msg.includes('network') || msg.includes('fetch'))
-      return '⚠ Error de red. Verificá tu conexión a internet';
-    return '⚠ Revisá el token y que tu cuenta tenga Webex Calling activo';
+  function diagnoseSipError(cause) {
+    const c = (cause || '').toLowerCase();
+    if (c.includes('unauthorized') || c.includes('403') || c.includes('401')) {
+      log('→ Token rechazado por SIP proxy. Verificá:', 'warn');
+      log('  1. El token no expiró', 'warn');
+      log('  2. La app tiene scope spark:webrtc_calling', 'warn');
+      log('  3. El SIP URI es correcto (user@empresa.webex.com)', 'warn');
+    } else if (c.includes('request timeout') || c.includes('connection')) {
+      log('→ No se pudo conectar al WSS. Verificá tu red.', 'warn');
+    } else {
+      log(`→ Causa: ${cause}`, 'warn');
+      log('→ Verificá que tu cuenta tenga Webex Calling activo', 'warn');
+    }
   }
 
-  // ── CALL TOGGLE ──
+  // ── CALL ──
   function toggleCall() {
     if (!callActive) startCall();
     else endCall();
   }
 
-  async function startCall() {
-    if (!sdkReady || !webexInstance) {
-      log('⚠ SDK no inicializado. Hacé click en CONECTAR SDK primero.', 'warn');
-      return;
+  function startCall() {
+    if (!sdkReady || !ua) {
+      log('⚠ Conectá el SDK primero', 'warn'); return;
     }
-
     const dest = destInput.value.trim();
     log(`☎ Marcando → ${dest}`, 'info');
     setCallUI(true);
-    setStatus('ready', 'Llamada en curso…');
+    setStatus('ready', 'Llamando…');
 
     try {
-      currentCall = webexInstance.phone.dial(dest);
+      const target = dest.includes('@') ? `sip:${dest}` : `sip:${dest}@webex.com`;
 
-      currentCall.on('connected', () => {
-        log('✓ Llamada conectada', 'ok');
-        setStatus('ready', 'Llamada conectada');
+      currentCall = ua.call(target, {
+        mediaConstraints: { audio: true, video: false },
+        rtcOfferConstraints: { offerToReceiveAudio: true, offerToReceiveVideo: false },
+        eventHandlers: {
+          progress: ()  => { log('→ Llamada en progreso (ring)…', 'info'); },
+          confirmed: () => { log('✓ Llamada conectada', 'ok'); setStatus('ready','En llamada'); },
+          ended: e  => { log(`✓ Llamada finalizada: ${e.cause}`, 'ok'); _onCallEnd(true); },
+          failed: e  => { log(`✗ Llamada fallida: ${e.cause}`, 'error'); _onCallEnd(false); }
+        }
       });
 
-      currentCall.on('disconnected', () => {
-        log('✓ Llamada finalizada', 'ok');
-        _onCallEnd(true);
+      // Conectar audio remoto
+      currentCall.connection?.addEventListener('track', e => {
+        if (e.streams[0]) remoteAudio.srcObject = e.streams[0];
       });
 
-      currentCall.on('error', err => {
-        log(`✗ Error en llamada: ${err.message || err}`, 'error');
-        _onCallEnd(false);
-      });
-
-    } catch (err) {
-      log(`✗ No se pudo iniciar la llamada: ${err.message}`, 'error');
-      log(getHint(err), 'warn');
+    } catch(err) {
+      log(`✗ ${err.message}`, 'error');
       setCallUI(false);
       setStatus('error', 'Error al llamar');
     }
@@ -937,47 +971,40 @@
 
   function endCall() {
     if (currentCall) {
-      try { currentCall.hangup(); } catch(e) { log(`⚠ hangup: ${e.message}`, 'warn'); }
+      try { currentCall.terminate(); } catch(e) {}
     }
     _onCallEnd(true);
   }
 
   function _onCallEnd(success) {
-    const duration = callStart ? Math.floor((Date.now() - callStart) / 1000) : 0;
+    const dur = callStart ? Math.floor((Date.now()-callStart)/1000) : 0;
     setCallUI(false);
     currentCall = null;
-    addHistoryEntry(destInput.value.trim(), duration, success);
+    addHistoryEntry(destInput.value.trim(), dur, success);
     validate();
-    if (success) setStatus('ready', 'Listo para llamar');
-    else setStatus('error', 'Llamada fallida');
+    setStatus(success ? 'ready' : 'error', success ? 'Listo para llamar' : 'Llamada fallida');
   }
 
   // ── HISTORY ──
-  function fmtDuration(secs) {
-    return `${pad(Math.floor(secs/60))}:${pad(secs%60)}`;
-  }
-
+  function fmtDur(s) { return `${pad(Math.floor(s/60))}:${pad(s%60)}`; }
   function fmtTime(ts) {
     const d = new Date(ts);
-    return d.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' }) +
-           ' · ' + d.toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit' });
+    return d.toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'}) +
+           ' · ' + d.toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit'});
   }
-
-  function addHistoryEntry(dest, duration, success) {
-    callHistory.unshift({ dest, duration, success, ts: Date.now() });
+  function addHistoryEntry(dest, dur, success) {
+    callHistory.unshift({ dest, dur, success, ts: Date.now() });
     if (callHistory.length > 50) callHistory.pop();
     localStorage.setItem('wxc_history', JSON.stringify(callHistory));
     renderHistory();
   }
-
   function renderHistory() {
-    if (callHistory.length === 0) {
-      historyList.innerHTML = '<div class="history-empty">// Sin llamadas registradas</div>';
-      return;
+    if (!callHistory.length) {
+      historyList.innerHTML = '<div class="history-empty">// Sin llamadas registradas</div>'; return;
     }
-    historyList.innerHTML = callHistory.map((e, i) => `
+    historyList.innerHTML = callHistory.map((e,i) => `
       <div class="history-item" style="animation-delay:${i*0.04}s">
-        <div class="history-icon ${e.success ? 'success' : 'missed'}">
+        <div class="history-icon ${e.success?'success':'missed'}">
           ${e.success
             ? '<svg viewBox="0 0 24 24" fill="none"><path d="M6.62 10.79a15.05 15.05 0 0 0 6.59 6.59l2.2-2.2a1 1 0 0 1 1.01-.24 11.47 11.47 0 0 0 3.58.57A1 1 0 0 1 21 16.5v3.5a1 1 0 0 1-1 1A17 17 0 0 1 3 4a1 1 0 0 1 1-1h3.5a1 1 0 0 1 1 .99 11.47 11.47 0 0 0 .57 3.58 1 1 0 0 1-.25 1.01Z" fill="#00ff88"/></svg>'
             : '<svg viewBox="0 0 24 24" fill="none"><line x1="18" y1="6" x2="6" y2="18" stroke="#ff3b6b" stroke-width="2.5" stroke-linecap="round"/><line x1="6" y1="6" x2="18" y2="18" stroke="#ff3b6b" stroke-width="2.5" stroke-linecap="round"/></svg>'
@@ -987,76 +1014,47 @@
           <div class="history-number">${e.dest}</div>
           <div class="history-meta">${fmtTime(e.ts)}</div>
         </div>
-        <div class="history-duration">${e.success ? fmtDuration(e.duration) : 'fallida'}</div>
-      </div>
-    `).join('');
+        <div class="history-duration">${e.success ? fmtDur(e.dur) : 'fallida'}</div>
+      </div>`).join('');
   }
-
   function clearHistory() {
-    callHistory = [];
-    localStorage.removeItem('wxc_history');
-    renderHistory();
+    callHistory = []; localStorage.removeItem('wxc_history'); renderHistory();
   }
 
-  // ── DEBUG BUTTONS ──
+  // ── DEBUG ──
   async function testToken() {
     const token = tokenInput.value.trim();
-    if (!token) { log('⚠ Ingresá un token primero', 'warn'); return; }
-    log('GET /v1/people/me…', 'info');
+    if (!token) { log('⚠ Ingresá un token primero','warn'); return; }
+    log('GET /v1/people/me…','info');
     try {
       const r = await fetch('https://webexapis.com/v1/people/me', {
         headers: { 'Authorization': `Bearer ${token}` }
       });
-      const data = await r.json();
+      const d = await r.json();
       if (r.ok) {
-        log(`✓ Token válido — ${data.displayName} (${data.emails?.[0]})`, 'ok');
-        log(`✓ Org: ${data.orgId?.slice(-10)}…`, 'ok');
+        log(`✓ Token válido — ${d.displayName} (${d.emails?.[0]})`, 'ok');
       } else {
-        log(`✗ HTTP ${r.status} — ${data.message}`, 'error');
-        log(getHint({ message: String(r.status) }), 'warn');
+        log(`✗ HTTP ${r.status} — ${d.message}`, 'error');
+        if (r.status===401) log('→ Token expirado o inválido — re-autorizá la app','warn');
+        if (r.status===403) log('→ Falta scope spark:people_read (no crítico para llamadas)','warn');
       }
-    } catch(e) {
-      log(`✗ ${e.message}`, 'error');
-    }
+    } catch(e) { log(`✗ ${e.message}`,'error'); }
   }
 
-  function checkMyInfo() { testToken(); }
-
-  async function testDial() {
-    log('Iniciando SDK + marcado de prueba…', 'info');
-    await initWebex();
-  }
-
-  // ── SDK VERSION CHECK ──
   function checkSdkVersion() {
-    if (!window.Webex) {
-      log('✗ SDK no cargado — revisá conexión a internet o bloqueador de scripts', 'error');
-      return;
+    if (typeof JsSIP === 'undefined') {
+      log('✗ JsSIP no cargado','error'); return;
     }
-    const ver = window.Webex.version || window.Webex.VERSION || 'desconocida';
-    log(`✓ window.Webex disponible — versión: ${ver}`, 'ok');
-    const methods = Object.keys(window.Webex).join(', ');
-    log(`→ Propiedades: ${methods.slice(0,120)}…`, 'info');
-
-    // Verificar si phone plugin existe
-    if (window.Webex.init) {
-      log('✓ Webex.init() disponible', 'ok');
-    }
-    const testInstance = window.Webex.init({ credentials: { access_token: 'test' } });
-    const plugins = Object.keys(testInstance).filter(k => typeof testInstance[k] === 'object').join(', ');
-    log(`→ Plugins disponibles: ${plugins}`, 'info');
-    if (testInstance.phone) {
-      log('✓ Plugin phone disponible — Webex Calling soportado', 'ok');
-    } else {
-      log('✗ Plugin phone NO disponible en esta versión del SDK', 'error');
-      log('→ Probá fijando versión: cambiá "webex@latest" por "webex@2.32.0" en el script src', 'warn');
-    }
+    log(`✓ JsSIP ${JsSIP.C.USER_AGENT} cargado correctamente`,'ok');
+    log('→ Ingresá token + SIP URI y hacé click en CONECTAR','info');
   }
 
   // ── INIT ──
   renderHistory();
   validate();
-  log('SDK listo para inicializar. Ingresá el token y hacé click en CONECTAR SDK.', 'info');
+  log('Listo. Completá los 3 campos y hacé click en ⚡ CONECTAR SDK.', 'info');
+  log('→ SIP URI = tu usuario de Webex Calling (ej: juan@empresa.webex.com)', 'info');
 </script>
+
 </body>
 </html>
