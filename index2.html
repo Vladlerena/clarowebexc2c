@@ -1,0 +1,1062 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Webex Click to Call</title>
+  <!-- Webex Browser SDK — versión estable fija -->
+  <script src="https://unpkg.com/webex@2.32.0/umd/webex.min.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Exo+2:wght@300;400;600;700&display=swap" rel="stylesheet"/>
+  <style>
+    :root {
+      --bg: #050d1a;
+      --surface: #0a1628;
+      --surface2: #0f1f3d;
+      --border: #1a3a6e;
+      --accent: #00d4ff;
+      --accent2: #0099cc;
+      --green: #00ff88;
+      --red: #ff3b6b;
+      --text: #c8e0ff;
+      --text-dim: #4a6fa5;
+      --mono: 'Share Tech Mono', monospace;
+      --sans: 'Exo 2', sans-serif;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--sans);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      overflow-x: hidden;
+    }
+
+    /* Grid background */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image:
+        linear-gradient(rgba(0,212,255,0.03) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(0,212,255,0.03) 1px, transparent 1px);
+      background-size: 40px 40px;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    /* Glow orb */
+    body::after {
+      content: '';
+      position: fixed;
+      top: -200px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 600px;
+      height: 600px;
+      background: radial-gradient(circle, rgba(0,153,204,0.12) 0%, transparent 70%);
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    .page {
+      position: relative;
+      z-index: 1;
+      width: 100%;
+      max-width: 520px;
+      padding: 40px 20px 60px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 32px;
+    }
+
+    /* ── HEADER ── */
+    header {
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+      animation: fadeDown 0.7s ease both;
+    }
+
+    .logo-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .logo-icon {
+      width: 44px;
+      height: 44px;
+      border-radius: 12px;
+      background: linear-gradient(135deg, #005f88, #00aad4);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 0 20px rgba(0,212,255,0.3);
+    }
+
+    .logo-icon svg { width: 24px; height: 24px; fill: #fff; }
+
+    .company-name {
+      font-size: 22px;
+      font-weight: 700;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      color: #fff;
+    }
+
+    .tagline {
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--text-dim);
+      letter-spacing: 3px;
+      text-transform: uppercase;
+    }
+
+    .divider {
+      width: 100%;
+      height: 1px;
+      background: linear-gradient(90deg, transparent, var(--border), transparent);
+    }
+
+    /* ── TOKEN CONFIG PANEL ── */
+    .config-panel {
+      width: 100%;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 24px;
+      animation: fadeUp 0.7s 0.1s ease both;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .config-panel::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 2px;
+      background: linear-gradient(90deg, transparent, var(--accent), transparent);
+    }
+
+    .section-label {
+      font-family: var(--mono);
+      font-size: 10px;
+      letter-spacing: 3px;
+      color: var(--accent);
+      text-transform: uppercase;
+      margin-bottom: 16px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .section-label::before {
+      content: '//';
+      color: var(--text-dim);
+    }
+
+    .field-group {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .field {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    label {
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--text-dim);
+      letter-spacing: 1px;
+    }
+
+    input {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--text);
+      font-family: var(--mono);
+      font-size: 13px;
+      padding: 10px 14px;
+      outline: none;
+      transition: border-color 0.2s, box-shadow 0.2s;
+      width: 100%;
+    }
+
+    input:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 2px rgba(0,212,255,0.12);
+    }
+
+    input::placeholder { color: var(--text-dim); opacity: 0.5; }
+
+    .status-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-top: 4px;
+    }
+
+    .status-dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: var(--text-dim);
+      transition: background 0.3s, box-shadow 0.3s;
+    }
+
+    .status-dot.ready {
+      background: var(--green);
+      box-shadow: 0 0 8px var(--green);
+      animation: pulse 2s infinite;
+    }
+
+    .status-dot.error {
+      background: var(--red);
+      box-shadow: 0 0 8px var(--red);
+    }
+
+    .status-text {
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--text-dim);
+      transition: color 0.3s;
+    }
+
+    .status-text.ready { color: var(--green); }
+    .status-text.error { color: var(--red); }
+
+    /* ── CALL PANEL ── */
+    .call-panel {
+      width: 100%;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 32px 24px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 28px;
+      animation: fadeUp 0.7s 0.2s ease both;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .call-panel::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 2px;
+      background: linear-gradient(90deg, transparent, var(--green), transparent);
+    }
+
+    .destination-display {
+      text-align: center;
+    }
+
+    .destination-display .dest-label {
+      font-family: var(--mono);
+      font-size: 10px;
+      letter-spacing: 3px;
+      color: var(--text-dim);
+      text-transform: uppercase;
+      margin-bottom: 8px;
+    }
+
+    .destination-display .dest-number {
+      font-family: var(--mono);
+      font-size: 28px;
+      color: #fff;
+      letter-spacing: 4px;
+      text-shadow: 0 0 20px rgba(0,212,255,0.4);
+    }
+
+    /* Big call button */
+    .call-btn {
+      width: 120px;
+      height: 120px;
+      border-radius: 50%;
+      border: 2px solid var(--green);
+      background: radial-gradient(circle at 40% 35%, #005533, #001a0d);
+      cursor: pointer;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      transition: transform 0.15s, box-shadow 0.3s, border-color 0.3s;
+      box-shadow:
+        0 0 30px rgba(0,255,136,0.2),
+        inset 0 1px 0 rgba(255,255,255,0.05);
+      position: relative;
+      overflow: visible;
+    }
+
+    .call-btn::before {
+      content: '';
+      position: absolute;
+      inset: -8px;
+      border-radius: 50%;
+      border: 1px solid rgba(0,255,136,0.2);
+      animation: ring 2.5s ease-in-out infinite;
+    }
+
+    .call-btn::after {
+      content: '';
+      position: absolute;
+      inset: -16px;
+      border-radius: 50%;
+      border: 1px solid rgba(0,255,136,0.08);
+      animation: ring 2.5s 0.5s ease-in-out infinite;
+    }
+
+    .call-btn:hover:not(:disabled) {
+      transform: scale(1.05);
+      box-shadow: 0 0 50px rgba(0,255,136,0.4), inset 0 1px 0 rgba(255,255,255,0.05);
+    }
+
+    .call-btn:active:not(:disabled) { transform: scale(0.97); }
+
+    .call-btn:disabled {
+      border-color: var(--text-dim);
+      background: radial-gradient(circle, #1a2030, #0d1520);
+      cursor: not-allowed;
+      box-shadow: none;
+    }
+
+    .call-btn:disabled::before,
+    .call-btn:disabled::after { display: none; }
+
+    .call-btn svg { width: 36px; height: 36px; }
+
+    .call-btn .btn-label {
+      font-family: var(--mono);
+      font-size: 10px;
+      letter-spacing: 2px;
+      color: var(--green);
+      text-transform: uppercase;
+    }
+
+    .call-btn:disabled .btn-label { color: var(--text-dim); }
+
+    /* In-call state */
+    .call-btn.in-call {
+      border-color: var(--red);
+      background: radial-gradient(circle at 40% 35%, #550011, #1a0008);
+      box-shadow: 0 0 40px rgba(255,59,107,0.3), inset 0 1px 0 rgba(255,255,255,0.05);
+    }
+
+    .call-btn.in-call::before {
+      border-color: rgba(255,59,107,0.25);
+    }
+
+    .call-btn.in-call::after {
+      border-color: rgba(255,59,107,0.1);
+    }
+
+    .call-btn.in-call .btn-label { color: var(--red); }
+
+    .call-timer {
+      font-family: var(--mono);
+      font-size: 13px;
+      color: var(--text-dim);
+      letter-spacing: 3px;
+      min-height: 18px;
+      transition: color 0.3s;
+    }
+
+    .call-timer.active { color: var(--red); }
+
+    /* ── HISTORY PANEL ── */
+    .history-panel {
+      width: 100%;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 20px 24px;
+      animation: fadeUp 0.7s 0.3s ease both;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .history-panel::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 2px;
+      background: linear-gradient(90deg, transparent, rgba(0,212,255,0.4), transparent);
+    }
+
+    .history-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 16px;
+    }
+
+    .clear-btn {
+      font-family: var(--mono);
+      font-size: 10px;
+      color: var(--text-dim);
+      background: none;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 4px 10px;
+      cursor: pointer;
+      letter-spacing: 1px;
+      transition: color 0.2s, border-color 0.2s;
+    }
+
+    .clear-btn:hover { color: var(--red); border-color: var(--red); }
+
+    .history-list {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      max-height: 220px;
+      overflow-y: auto;
+    }
+
+    .history-list::-webkit-scrollbar { width: 4px; }
+    .history-list::-webkit-scrollbar-track { background: transparent; }
+    .history-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+    .history-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 10px 14px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      animation: fadeIn 0.3s ease both;
+    }
+
+    .history-icon {
+      width: 28px; height: 28px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+
+    .history-icon.success { background: rgba(0,255,136,0.1); }
+    .history-icon.missed  { background: rgba(255,59,107,0.1); }
+    .history-icon svg { width: 14px; height: 14px; }
+
+    .history-info { flex: 1; min-width: 0; }
+
+    .history-number {
+      font-family: var(--mono);
+      font-size: 13px;
+      color: #fff;
+      letter-spacing: 1px;
+    }
+
+    .history-meta {
+      font-family: var(--mono);
+      font-size: 10px;
+      color: var(--text-dim);
+      margin-top: 2px;
+    }
+
+    .history-duration {
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--text-dim);
+      flex-shrink: 0;
+    }
+
+    .history-empty {
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--text-dim);
+      text-align: center;
+      padding: 20px;
+      letter-spacing: 1px;
+      opacity: 0.6;
+    }
+
+    /* ── FOOTER ── */
+    footer {
+      font-family: var(--mono);
+      font-size: 10px;
+      color: var(--text-dim);
+      letter-spacing: 2px;
+      text-align: center;
+      opacity: 0.5;
+      animation: fadeUp 0.7s 0.4s ease both;
+    }
+
+    /* ── DEBUG PANEL ── */
+    .debug-panel {
+      width: 100%;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 20px 24px;
+      animation: fadeUp 0.7s 0.35s ease both;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .debug-panel::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 2px;
+      background: linear-gradient(90deg, transparent, rgba(255,200,0,0.4), transparent);
+    }
+
+    .debug-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 14px;
+    }
+
+    .debug-toggle {
+      font-family: var(--mono);
+      font-size: 10px;
+      color: var(--text-dim);
+      background: none;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 4px 10px;
+      cursor: pointer;
+      letter-spacing: 1px;
+      transition: color 0.2s, border-color 0.2s;
+    }
+
+    .debug-toggle:hover { color: var(--accent); border-color: var(--accent); }
+
+    .debug-log {
+      background: #020810;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 12px;
+      max-height: 240px;
+      overflow-y: auto;
+      font-family: var(--mono);
+      font-size: 11px;
+      line-height: 1.7;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .debug-log::-webkit-scrollbar { width: 4px; }
+    .debug-log::-webkit-scrollbar-track { background: transparent; }
+    .debug-log::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+    .log-line { display: flex; gap: 10px; word-break: break-all; }
+    .log-time  { color: var(--text-dim); flex-shrink: 0; }
+    .log-info  { color: var(--accent); }
+    .log-ok    { color: var(--green); }
+    .log-error { color: var(--red); }
+    .log-warn  { color: #ffcc00; }
+    .log-empty { color: var(--text-dim); opacity: 0.5; text-align: center; padding: 12px; }
+
+    .debug-actions {
+      display: flex;
+      gap: 8px;
+      margin-top: 12px;
+      flex-wrap: wrap;
+    }
+
+    .debug-btn {
+      font-family: var(--mono);
+      font-size: 10px;
+      color: var(--text-dim);
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 6px 12px;
+      cursor: pointer;
+      letter-spacing: 1px;
+      transition: all 0.2s;
+      flex: 1;
+      min-width: 120px;
+    }
+
+    .debug-btn:hover { color: var(--accent); border-color: var(--accent); }
+    .debug-btn.primary { border-color: #ffcc00; color: #ffcc00; }
+    .debug-btn.primary:hover { background: rgba(255,204,0,0.08); }
+
+    /* ── ANIMATIONS ── */
+    @keyframes fadeDown {
+      from { opacity: 0; transform: translateY(-16px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(20px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; }
+      to   { opacity: 1; }
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50%       { opacity: 0.5; }
+    }
+
+    @keyframes ring {
+      0%   { transform: scale(1); opacity: 0.6; }
+      100% { transform: scale(1.18); opacity: 0; }
+    }
+  </style>
+</head>
+<body>
+<div class="page">
+
+  <!-- HEADER -->
+  <header>
+    <div class="logo-row">
+      <div class="logo-icon">
+        <!-- Webex-style icon -->
+        <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+          <path d="M6.62 10.79a15.05 15.05 0 0 0 6.59 6.59l2.2-2.2a1 1 0 0 1 1.01-.24 11.47 11.47 0 0 0 3.58.57A1 1 0 0 1 21 16.5v3.5a1 1 0 0 1-1 1A17 17 0 0 1 3 4a1 1 0 0 1 1-1h3.5a1 1 0 0 1 1 .99 11.47 11.47 0 0 0 .57 3.58 1 1 0 0 1-.25 1.01Z"/>
+        </svg>
+      </div>
+      <span class="company-name">ConnectNow</span>
+    </div>
+    <span class="tagline">Webex Calling · Click to Call</span>
+  </header>
+
+  <div class="divider"></div>
+
+  <!-- CONFIG PANEL -->
+  <div class="config-panel">
+    <div class="section-label">Configuración</div>
+    <div class="field-group">
+      <div class="field">
+        <label>WEBEX ACCESS TOKEN</label>
+        <input type="password" id="tokenInput" placeholder="Pegá tu token aquí…" autocomplete="off"/>
+      </div>
+      <div class="field">
+        <label>NÚMERO / SIP URI DE DESTINO</label>
+        <input type="text" id="destInput" placeholder="+54 11 XXXX-XXXX o user@domain.webex.com"/>
+      </div>
+      <div class="status-row">
+        <div class="status-dot" id="statusDot"></div>
+        <span class="status-text" id="statusText">Configuración pendiente</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- CALL PANEL -->
+  <div class="call-panel">
+    <div class="destination-display">
+      <div class="dest-label">Destino</div>
+      <div class="dest-number" id="destDisplay">—</div>
+    </div>
+
+    <button class="call-btn" id="callBtn" disabled onclick="toggleCall()">
+      <!-- Phone icon -->
+      <svg id="callIcon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M6.62 10.79a15.05 15.05 0 0 0 6.59 6.59l2.2-2.2a1 1 0 0 1 1.01-.24 11.47 11.47 0 0 0 3.58.57A1 1 0 0 1 21 16.5v3.5a1 1 0 0 1-1 1A17 17 0 0 1 3 4a1 1 0 0 1 1-1h3.5a1 1 0 0 1 1 .99 11.47 11.47 0 0 0 .57 3.58 1 1 0 0 1-.25 1.01Z" fill="#00ff88"/>
+      </svg>
+      <span class="btn-label" id="btnLabel">LLAMAR</span>
+    </button>
+
+    <div class="call-timer" id="callTimer">00:00:00</div>
+  </div>
+
+  <!-- HISTORY PANEL -->
+  <div class="history-panel">
+    <div class="history-header">
+      <div class="section-label" style="margin-bottom:0">Historial</div>
+      <button class="clear-btn" onclick="clearHistory()">LIMPIAR</button>
+    </div>
+    <div class="history-list" id="historyList">
+      <div class="history-empty" id="emptyMsg">// Sin llamadas registradas</div>
+    </div>
+  </div>
+
+  <!-- DEBUG PANEL -->
+  <div class="debug-panel">
+    <div class="debug-header">
+      <div class="section-label" style="margin-bottom:0;color:#ffcc00">
+        <span style="color:var(--text-dim)">//</span> DEBUG LOG
+      </div>
+      <button class="debug-toggle" onclick="clearDebug()">LIMPIAR</button>
+    </div>
+    <div class="debug-log" id="debugLog">
+      <div class="log-empty">// Esperando actividad…</div>
+    </div>
+    <div class="debug-actions">
+      <button class="debug-btn primary" onclick="initWebex()">⚡ CONECTAR SDK</button>
+      <button class="debug-btn" onclick="testToken()">▶ TEST TOKEN</button>
+      <button class="debug-btn" onclick="checkSdkVersion()">🔍 VER SDK</button>
+    </div>
+  </div>
+
+  <footer>WEBEX CALLING · GITHUB PAGES · v1.0</footer>
+</div>
+
+<script>
+  // ══════════════════════════════════════════════
+  //  WEBEX BROWSER SDK — Click to Call
+  // ══════════════════════════════════════════════
+  let webexInstance = null;
+  let currentCall   = null;
+  let callActive    = false;
+  let callStart     = null;
+  let timerInterval = null;
+  let callHistory   = JSON.parse(localStorage.getItem('wxc_history') || '[]');
+  let sdkReady      = false;
+
+  // ── DOM refs ──
+  const tokenInput  = document.getElementById('tokenInput');
+  const destInput   = document.getElementById('destInput');
+  const callBtn     = document.getElementById('callBtn');
+  const btnLabel    = document.getElementById('btnLabel');
+  const callIcon    = document.getElementById('callIcon');
+  const statusDot   = document.getElementById('statusDot');
+  const statusText  = document.getElementById('statusText');
+  const destDisplay = document.getElementById('destDisplay');
+  const callTimer   = document.getElementById('callTimer');
+  const historyList = document.getElementById('historyList');
+
+  // ── DEBUG LOG ──
+  function log(msg, type = 'info') {
+    const container = document.getElementById('debugLog');
+    const empty = container.querySelector('.log-empty');
+    if (empty) empty.remove();
+    const now = new Date().toLocaleTimeString('es-AR', { hour12: false });
+    const line = document.createElement('div');
+    line.className = 'log-line';
+    line.innerHTML = `<span class="log-time">[${now}]</span><span class="log-${type}">${msg}</span>`;
+    container.appendChild(line);
+    container.scrollTop = container.scrollHeight;
+  }
+
+  function clearDebug() {
+    document.getElementById('debugLog').innerHTML = '<div class="log-empty">// Log limpiado…</div>';
+  }
+
+  // ── TIMER ──
+  function pad(n) { return String(n).padStart(2, '0'); }
+
+  function updateTimer() {
+    const elapsed = Math.floor((Date.now() - callStart) / 1000);
+    const h = Math.floor(elapsed / 3600);
+    const m = Math.floor((elapsed % 3600) / 60);
+    const s = elapsed % 60;
+    callTimer.textContent = `${pad(h)}:${pad(m)}:${pad(s)}`;
+  }
+
+  // ── UI HELPERS ──
+  function setStatus(type, msg) {
+    statusDot.className  = 'status-dot'  + (type ? ' ' + type : '');
+    statusText.className = 'status-text' + (type ? ' ' + type : '');
+    statusText.textContent = msg;
+  }
+
+  function setCallUI(active) {
+    callActive = active;
+    callBtn.classList.toggle('in-call', active);
+    if (active) {
+      callIcon.innerHTML = '<line x1="18.36" y1="5.64" x2="5.64" y2="18.36" stroke="#ff3b6b" stroke-width="2.5" stroke-linecap="round"/><line x1="5.64" y1="5.64" x2="18.36" y2="18.36" stroke="#ff3b6b" stroke-width="2.5" stroke-linecap="round"/>';
+      btnLabel.textContent = 'COLGAR';
+      callTimer.classList.add('active');
+      callStart = Date.now();
+      timerInterval = setInterval(updateTimer, 1000);
+    } else {
+      callIcon.innerHTML = '<path d="M6.62 10.79a15.05 15.05 0 0 0 6.59 6.59l2.2-2.2a1 1 0 0 1 1.01-.24 11.47 11.47 0 0 0 3.58.57A1 1 0 0 1 21 16.5v3.5a1 1 0 0 1-1 1A17 17 0 0 1 3 4a1 1 0 0 1 1-1h3.5a1 1 0 0 1 1 .99 11.47 11.47 0 0 0 .57 3.58 1 1 0 0 1-.25 1.01Z" fill="#00ff88"/>';
+      btnLabel.textContent = 'LLAMAR';
+      callTimer.classList.remove('active');
+      callTimer.textContent = '00:00:00';
+      clearInterval(timerInterval);
+    }
+  }
+
+  // ── VALIDATE INPUTS ──
+  function validate() {
+    const token = tokenInput.value.trim();
+    const dest  = destInput.value.trim();
+    destDisplay.textContent = dest || '—';
+
+    if (!token) {
+      setStatus('', 'Token requerido');
+      callBtn.disabled = true;
+      return;
+    }
+    if (!dest) {
+      setStatus('', 'Destino requerido');
+      callBtn.disabled = true;
+      return;
+    }
+    if (sdkReady) {
+      setStatus('ready', 'Listo para llamar');
+      callBtn.disabled = false;
+    } else {
+      setStatus('', 'Conectando SDK…');
+      callBtn.disabled = true;
+    }
+  }
+
+  tokenInput.addEventListener('input', () => {
+    sdkReady = false;
+    webexInstance = null;
+    validate();
+  });
+  destInput.addEventListener('input', validate);
+
+  // ── INIT WEBEX SDK ──
+  async function initWebex() {
+    const token = tokenInput.value.trim();
+    if (!token || token.length < 20) {
+      log('⚠ Ingresá un token válido primero', 'warn');
+      return;
+    }
+
+    log('Inicializando Webex Browser SDK…', 'info');
+    setStatus('', 'Conectando SDK…');
+    callBtn.disabled = true;
+    sdkReady = false;
+
+    try {
+      // 1. Crear instancia con el token directamente
+      webexInstance = window.Webex.init({
+        credentials: { access_token: token }
+      });
+
+      // 2. Verificar token con /people/me (sin CORS issues)
+      log('Verificando token…', 'info');
+      await webexInstance.people.get('me');
+      log('✓ Token válido', 'ok');
+
+      // 3. Registrar el dispositivo para llamadas
+      log('Registrando dispositivo para Webex Calling…', 'info');
+      await webexInstance.phone.register();
+      log('✓ Dispositivo registrado — listo para llamar', 'ok');
+
+      sdkReady = true;
+      setStatus('ready', 'Listo para llamar');
+      callBtn.disabled = !(tokenInput.value.trim() && destInput.value.trim());
+
+      // Escuchar llamadas entrantes
+      webexInstance.phone.on('call:incoming', call => {
+        log(`📞 Llamada entrante de: ${call.from?.id || 'desconocido'}`, 'warn');
+      });
+
+    } catch (err) {
+      const msg = err.message || String(err);
+      log(`✗ Error: ${msg}`, 'error');
+
+      // Diagnóstico detallado
+      if (msg.includes('401') || msg.toLowerCase().includes('unauthorized') || msg.toLowerCase().includes('unauthenticated')) {
+        log('⚠ Token inválido o expirado.', 'warn');
+        log('→ Generá uno nuevo en: developer.webex.com → Documentation → Getting Started', 'warn');
+      } else if (msg.includes('phone') || msg.includes('register')) {
+        log('⚠ Error al registrar dispositivo.', 'warn');
+        log('→ Verificá que tu cuenta tenga Webex Calling habilitado (no solo Webex Meetings)', 'warn');
+      } else if (msg.includes('network') || msg.includes('fetch') || msg.includes('Failed')) {
+        log('⚠ Error de red al contactar Webex.', 'warn');
+        log('→ Verificá conexión a internet y que no haya bloqueadores de red', 'warn');
+      } else {
+        log('→ Intentá refrescar la página y reconectar', 'warn');
+      }
+
+      setStatus('error', 'Error de conexión');
+      sdkReady = false;
+      webexInstance = null;
+    }
+  }
+
+  function getHint(err) {
+    const msg = err.message || '';
+    if (msg.includes('401') || msg.includes('Unauthorized'))
+      return '⚠ Token inválido o expirado → generá uno en developer.webex.com';
+    if (msg.includes('403'))
+      return '⚠ Sin permisos. El token necesita scope: spark:calls_write';
+    if (msg.includes('network') || msg.includes('fetch'))
+      return '⚠ Error de red. Verificá tu conexión a internet';
+    return '⚠ Revisá el token y que tu cuenta tenga Webex Calling activo';
+  }
+
+  // ── CALL TOGGLE ──
+  function toggleCall() {
+    if (!callActive) startCall();
+    else endCall();
+  }
+
+  async function startCall() {
+    if (!sdkReady || !webexInstance) {
+      log('⚠ SDK no inicializado. Hacé click en CONECTAR SDK primero.', 'warn');
+      return;
+    }
+
+    const dest = destInput.value.trim();
+    log(`☎ Marcando → ${dest}`, 'info');
+    setCallUI(true);
+    setStatus('ready', 'Llamada en curso…');
+
+    try {
+      currentCall = webexInstance.phone.dial(dest);
+
+      currentCall.on('connected', () => {
+        log('✓ Llamada conectada', 'ok');
+        setStatus('ready', 'Llamada conectada');
+      });
+
+      currentCall.on('disconnected', () => {
+        log('✓ Llamada finalizada', 'ok');
+        _onCallEnd(true);
+      });
+
+      currentCall.on('error', err => {
+        log(`✗ Error en llamada: ${err.message || err}`, 'error');
+        _onCallEnd(false);
+      });
+
+    } catch (err) {
+      log(`✗ No se pudo iniciar la llamada: ${err.message}`, 'error');
+      log(getHint(err), 'warn');
+      setCallUI(false);
+      setStatus('error', 'Error al llamar');
+    }
+  }
+
+  function endCall() {
+    if (currentCall) {
+      try { currentCall.hangup(); } catch(e) { log(`⚠ hangup: ${e.message}`, 'warn'); }
+    }
+    _onCallEnd(true);
+  }
+
+  function _onCallEnd(success) {
+    const duration = callStart ? Math.floor((Date.now() - callStart) / 1000) : 0;
+    setCallUI(false);
+    currentCall = null;
+    addHistoryEntry(destInput.value.trim(), duration, success);
+    validate();
+    if (success) setStatus('ready', 'Listo para llamar');
+    else setStatus('error', 'Llamada fallida');
+  }
+
+  // ── HISTORY ──
+  function fmtDuration(secs) {
+    return `${pad(Math.floor(secs/60))}:${pad(secs%60)}`;
+  }
+
+  function fmtTime(ts) {
+    const d = new Date(ts);
+    return d.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' }) +
+           ' · ' + d.toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit' });
+  }
+
+  function addHistoryEntry(dest, duration, success) {
+    callHistory.unshift({ dest, duration, success, ts: Date.now() });
+    if (callHistory.length > 50) callHistory.pop();
+    localStorage.setItem('wxc_history', JSON.stringify(callHistory));
+    renderHistory();
+  }
+
+  function renderHistory() {
+    if (callHistory.length === 0) {
+      historyList.innerHTML = '<div class="history-empty">// Sin llamadas registradas</div>';
+      return;
+    }
+    historyList.innerHTML = callHistory.map((e, i) => `
+      <div class="history-item" style="animation-delay:${i*0.04}s">
+        <div class="history-icon ${e.success ? 'success' : 'missed'}">
+          ${e.success
+            ? '<svg viewBox="0 0 24 24" fill="none"><path d="M6.62 10.79a15.05 15.05 0 0 0 6.59 6.59l2.2-2.2a1 1 0 0 1 1.01-.24 11.47 11.47 0 0 0 3.58.57A1 1 0 0 1 21 16.5v3.5a1 1 0 0 1-1 1A17 17 0 0 1 3 4a1 1 0 0 1 1-1h3.5a1 1 0 0 1 1 .99 11.47 11.47 0 0 0 .57 3.58 1 1 0 0 1-.25 1.01Z" fill="#00ff88"/></svg>'
+            : '<svg viewBox="0 0 24 24" fill="none"><line x1="18" y1="6" x2="6" y2="18" stroke="#ff3b6b" stroke-width="2.5" stroke-linecap="round"/><line x1="6" y1="6" x2="18" y2="18" stroke="#ff3b6b" stroke-width="2.5" stroke-linecap="round"/></svg>'
+          }
+        </div>
+        <div class="history-info">
+          <div class="history-number">${e.dest}</div>
+          <div class="history-meta">${fmtTime(e.ts)}</div>
+        </div>
+        <div class="history-duration">${e.success ? fmtDuration(e.duration) : 'fallida'}</div>
+      </div>
+    `).join('');
+  }
+
+  function clearHistory() {
+    callHistory = [];
+    localStorage.removeItem('wxc_history');
+    renderHistory();
+  }
+
+  // ── DEBUG BUTTONS ──
+  async function testToken() {
+    const token = tokenInput.value.trim();
+    if (!token) { log('⚠ Ingresá un token primero', 'warn'); return; }
+    log('GET /v1/people/me…', 'info');
+    try {
+      const r = await fetch('https://webexapis.com/v1/people/me', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      const data = await r.json();
+      if (r.ok) {
+        log(`✓ Token válido — ${data.displayName} (${data.emails?.[0]})`, 'ok');
+        log(`✓ Org: ${data.orgId?.slice(-10)}…`, 'ok');
+      } else {
+        log(`✗ HTTP ${r.status} — ${data.message}`, 'error');
+        log(getHint({ message: String(r.status) }), 'warn');
+      }
+    } catch(e) {
+      log(`✗ ${e.message}`, 'error');
+    }
+  }
+
+  function checkMyInfo() { testToken(); }
+
+  async function testDial() {
+    log('Iniciando SDK + marcado de prueba…', 'info');
+    await initWebex();
+  }
+
+  // ── SDK VERSION CHECK ──
+  function checkSdkVersion() {
+    if (!window.Webex) {
+      log('✗ SDK no cargado — revisá conexión a internet o bloqueador de scripts', 'error');
+      return;
+    }
+    const ver = window.Webex.version || window.Webex.VERSION || 'desconocida';
+    log(`✓ window.Webex disponible — versión: ${ver}`, 'ok');
+    const methods = Object.keys(window.Webex).join(', ');
+    log(`→ Propiedades: ${methods.slice(0,120)}…`, 'info');
+
+    // Verificar si phone plugin existe
+    if (window.Webex.init) {
+      log('✓ Webex.init() disponible', 'ok');
+    }
+    const testInstance = window.Webex.init({ credentials: { access_token: 'test' } });
+    const plugins = Object.keys(testInstance).filter(k => typeof testInstance[k] === 'object').join(', ');
+    log(`→ Plugins disponibles: ${plugins}`, 'info');
+    if (testInstance.phone) {
+      log('✓ Plugin phone disponible — Webex Calling soportado', 'ok');
+    } else {
+      log('✗ Plugin phone NO disponible en esta versión del SDK', 'error');
+      log('→ Probá fijando versión: cambiá "webex@latest" por "webex@2.32.0" en el script src', 'warn');
+    }
+  }
+
+  // ── INIT ──
+  renderHistory();
+  validate();
+  log('SDK listo para inicializar. Ingresá el token y hacé click en CONECTAR SDK.', 'info');
+</script>
+</body>
+</html>
