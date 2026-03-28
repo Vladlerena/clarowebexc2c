@@ -2,45 +2,73 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>Webex Calling Direct</title>
-    <script src="https://unpkg.com/webex@^1/umd/webex.min.js"></script>
+    <title>Webex Click to Call Fix</title>
+    <script src="webex.min.js"></script>
 </head>
 <body>
-    <div style="text-align:center; margin-top:50px;">
-        <button id="callBtn" onclick="iniciar()" style="padding:20px; cursor:pointer;">
-            INICIAR LLAMADA
+    <div style="text-align:center; margin-top:50px; font-family:sans-serif;">
+        <h2>Webex Calling</h2>
+        <input type="password" id="token" placeholder="Pega tu Token aquí" style="width:300px; padding:10px;"><br><br>
+        <input type="text" id="destino" placeholder="Número: ej +5411..." style="width:300px; padding:10px;"><br><br>
+        
+        <button id="btnAction" onclick="iniciarProceso()" style="padding:15px 30px; cursor:pointer; background:#00d4ff; border:none; border-radius:5px; font-weight:bold;">
+            CONECTAR Y LLAMAR
         </button>
-        <p id="status">Estado: Esperando...</p>
+        
+        <p id="status" style="color:#666; margin-top:20px;">Estado: Esperando...</p>
     </div>
 
     <script>
-        // Esta es la lógica que normalmente iría en el archivo .js separado
-        async function iniciar() {
-            const token = "ZGU2N2MwMjQtYWM3Zi00NWUzLWEyNjAtYzVjMTE4M2U5N2ZiOGM2MmIwMjgtNTNm_P0A1_cbbe27d4-1f60-43cb-819b-fd3749c66621";
-            const destino = "6100"; // ej: +5411...
+        let webexInstance = null;
+
+        async function iniciarProceso() {
+            const token = document.getElementById('token').value.trim();
+            const destino = document.getElementById('destino').value.trim();
             const status = document.getElementById('status');
 
+            if (!token || !destino) {
+                alert("Completa los campos");
+                return;
+            }
+
             try {
-                status.innerText = "Registrando en Webex...";
-                
-                // Inicializamos el objeto global que trae el SDK
-                const webex = Webex.init({
+                status.innerText = "Iniciando SDK...";
+
+                // 1. Inicialización (Uso de 'Webex' con mayúscula es el estándar del SDK global)
+                webexInstance = Webex.init({
                     credentials: { access_token: token }
                 });
 
-                // Estos pasos sustituyen lo que hace el archivo .js de Cisco
-                await webex.internal.device.register();
-                await webex.phone.register();
-
-                status.innerText = "Llamando...";
-                const call = webex.phone.dial(destino);
-
-                call.on('connected', () => status.innerText = "¡CONECTADO!");
-                call.on('disconnected', () => status.innerText = "Llamada finalizada");
+                status.innerText = "Registrando dispositivo...";
                 
+                // 2. IMPORTANTE: El error 'reading register' ocurre aquí si no se usa la ruta correcta.
+                // En versiones modernas es directamente webex.internal.device.register()
+                await webexInstance.internal.device.register();
+                
+                status.innerText = "Registrando servicio de voz...";
+                await webexInstance.phone.register();
+
+                status.innerText = "Marcando...";
+                const call = webexInstance.phone.dial(destino);
+
+                call.on('connected', () => {
+                    status.innerText = "¡EN LLAMADA!";
+                    status.style.color = "green";
+                });
+
+                call.on('disconnected', () => {
+                    status.innerText = "Llamada finalizada";
+                    status.style.color = "#666";
+                });
+
+                call.on('error', (err) => {
+                    status.innerText = "Error en llamada: " + err.message;
+                });
+
             } catch (error) {
-                status.innerText = "Error: " + error.message;
                 console.error(error);
+                status.innerText = "Error: " + error.message;
+                status.style.color = "red";
             }
         }
     </script>
