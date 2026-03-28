@@ -67,7 +67,7 @@
             const btn = document.getElementById('btnCall');
 
             if (!token) {
-                status.innerText = "Error: El token no puede estar vacío.";
+                status.innerText = "Error: Ingresa el Token.";
                 return;
             }
 
@@ -75,10 +75,11 @@
                 btn.disabled = true;
                 status.innerText = "1/4: Inicializando SDK...";
 
-                // INICIALIZACIÓN FORZADA
+                // INICIALIZACIÓN CON PLUGINS FORZADOS
                 webex = Webex.init({
                     credentials: { access_token: token },
                     config: {
+                        // Forzamos la carga de Calling y WebRTC
                         phone: {
                             enablePhoneService: true,
                             enableWebRTC: true,
@@ -87,19 +88,33 @@
                     }
                 });
 
-                status.innerText = "2/4: Registrando Dispositivo (WDM)...";
-                // Si aquí da error 401 o 403, el problema es el Token o el Web Origin
+                status.innerText = "2/4: Registrando Dispositivo...";
                 await webex.internal.device.register();
 
-                status.innerText = "3/4: Registrando Línea de Voz...";
-                await webex.phone.register();
+                // --- CAMBIO CRÍTICO AQUÍ ---
+                status.innerText = "3/4: Preparando motor de voz...";
+                
+                // Esperamos un segundo a que el SDK "descubra" que tienes Calling
+                if (!webex.phone) {
+                    console.log("Re-intentando cargar módulo Phone...");
+                    // Algunos SDKs requieren que se acceda a la propiedad para inicializarla
+                    await new Promise(resolve => setTimeout(resolve, 1500));
+                }
+
+                if (webex.phone) {
+                    status.innerText = "3/4: Registrando Línea de Voz...";
+                    await webex.phone.register();
+                } else {
+                    // Si llega aquí, el Token no tiene el Scope "spark:webrtc_calling"
+                    throw new Error("Tu cuenta no tiene permisos de voz (WebRTC) activos.");
+                }
 
                 status.innerText = "4/4: Marcando al 6100...";
                 activeCall = webex.phone.dial('6100');
 
-                // MANEJO DE EVENTOS
+                // EVENTOS
                 activeCall.on('connected', () => {
-                    status.innerText = "✅ LLAMADA CONECTADA";
+                    status.innerText = "✅ EN LLAMADA CON 6100";
                     btn.innerText = "COLGAR";
                     btn.style.backgroundColor = "#e74c3c";
                     btn.disabled = false;
@@ -111,15 +126,13 @@
                 });
 
                 activeCall.on('error', (err) => {
-                    status.innerText = "❌ Error en llamada: " + (err.message || "Revisar Consola");
-                    console.error("Error Detallado:", err);
+                    status.innerText = "❌ Error: " + err.message;
                     resetUI();
                 });
 
             } catch (error) {
-                // AQUÍ CAPTURAMOS EL 401/403/CORS
-                console.error("Fallo Crítico:", error);
-                status.innerText = "❌ Fallo en paso " + status.innerText.split(':')[0] + ": " + error.message;
+                console.error("Fallo:", error);
+                status.innerText = "❌ Error: " + error.message;
                 btn.disabled = false;
             }
         }
