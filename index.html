@@ -2,96 +2,96 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>Claro Webex C2C - 6100</title>
+    <title>Claro Webex C2C - Anexo 6100</title>
     <script src="webex.min.js"></script>
     <style>
-        body { font-family: sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; background: #f4f7f9; }
-        .card { background: white; padding: 30px; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); text-align: center; width: 350px; }
-        #status { background: #eee; padding: 10px; margin: 15px 0; border-radius: 5px; font-size: 13px; }
-        .btn-call { width: 100%; padding: 15px; background: #3278a0; color: white; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; }
-        .btn-call:disabled { background: #ccc; }
-        .oauth-link { display: block; margin-top: 15px; font-size: 12px; color: #0056b3; text-decoration: none; }
+        body { font-family: 'Segoe UI', Tahoma, sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; background: #f0f4f8; margin: 0; }
+        .card { background: white; padding: 40px; border-radius: 16px; box-shadow: 0 10px 30px rgba(0,0,0,0.1); text-align: center; width: 360px; }
+        #status { background: #f8f9fa; border: 1px solid #e9ecef; padding: 12px; margin: 20px 0; border-radius: 8px; font-size: 14px; color: #495057; }
+        input { width: 100%; padding: 12px; margin-bottom: 20px; border: 1px solid #ced4da; border-radius: 8px; box-sizing: border-box; }
+        .btn-call { width: 100%; padding: 16px; background: #3278a0; color: white; border: none; border-radius: 8px; font-size: 16px; font-weight: bold; cursor: pointer; transition: background 0.3s; }
+        .btn-call:hover { background: #286080; }
+        .btn-call:disabled { background: #adb5bd; cursor: not-allowed; }
     </style>
 </head>
 <body>
 
 <div class="card">
     <h2>Anexo AA 6100</h2>
-    <div id="status">Estado: Esperando autorización...</div>
+    <div id="status">Estado: Listo para conectar</div>
     
-    <input type="hidden" id="tokenInput"> <button id="btnCall" onclick="iniciarLlamada()" class="btn-call">LLAMAR AL 6100</button>
+    <input type="password" id="tokenInput" placeholder="Pega el Access Token aquí">
     
-    <a id="authLink" href="#" class="oauth-link">🔑 Paso 1: Autorizar en Webex</a>
+    <button id="btnCall" onclick="handleAction()" class="btn-call">LLAMAR AL 6100</button>
 </div>
 
 <script>
-    const CLIENT_ID = 'C6b8299f6b12f82cec3482504e820982d6f501b66a0290d70868b782f942368c2';
-    const REDIRECT_URI = 'https://vladlerena.github.io/clarowebexc2c/';
-    
-    // Generamos la URL de autorización correcta (con response_type=token)
-    const authUrl = `https://webexapis.com/v1/authorize?client_id=${CLIENT_ID}&response_type=token&redirect_uri=${encodeURIComponent(REDIRECT_URI)}&scope=spark%3Akms%20spark%3Apeople_read%20spark%3Awebrtc_calling&state=set_state_here`;
-    document.getElementById('authLink').href = authUrl;
-
     let webex;
     let activeCall;
 
-    // AL CARGAR: Detectamos si Webex nos envió el token en la URL (#access_token=...)
-    window.onload = () => {
-        const hash = window.location.hash;
-        if (hash && hash.includes('access_token')) {
-            const params = new URLSearchParams(hash.replace('#', '?'));
-            const token = params.get('access_token');
-            if (token) {
-                document.getElementById('tokenInput').value = token;
-                document.getElementById('status').innerText = "✅ Autorizado. Ya puedes llamar.";
-                // Limpia la URL para que no se vea el token
-                window.history.replaceState({}, document.title, window.location.pathname);
-            }
+    async function handleAction() {
+        if (activeCall) {
+            activeCall.hangup();
+            return;
         }
-    };
 
-    async function iniciarLlamada() {
-        const token = document.getElementById('tokenInput').value;
+        const token = document.getElementById('tokenInput').value.trim();
         const status = document.getElementById('status');
         const btn = document.getElementById('btnCall');
 
         if (!token) {
-            alert("Primero debes hacer clic en 'Autorizar en Webex'");
+            alert("Por favor, ingresa el Access Token.");
             return;
         }
 
         try {
             btn.disabled = true;
-            status.innerText = "Conectando con Webex...";
+            status.innerText = "Inicializando servicios...";
 
+            // Lógica idéntica al repo oficial:
             webex = Webex.init({
                 credentials: { access_token: token },
-                config: { phone: { enablePhoneService: true, enableWebRTC: true } }
+                config: {
+                    phone: {
+                        enablePhoneService: true,
+                        enableWebRTC: true,
+                        calling: { enabled: true } // El scope de 'calls' que mencionamos
+                    }
+                }
             });
 
+            status.innerText = "Registrando dispositivo...";
             await webex.internal.device.register();
-            
-            // Esperamos un momento para asegurar que el servicio de voz cargue
-            status.innerText = "Registrando línea de voz...";
+
+            status.innerText = "Conectando línea de voz...";
+            // Forzamos la espera del servicio antes del registro de línea
             await webex.phone.register();
 
             status.innerText = "Marcando al 6100...";
-            activeCall = webex.phone.dial('6100');
+            // Llamada asíncrona como en la demo
+            activeCall = await webex.phone.dial('6100');
 
             activeCall.on('connected', () => {
-                status.innerText = "🟢 EN LLAMADA AL 6100";
-                btn.innerText = "COLGAR";
-                btn.style.background = "red";
+                status.innerText = "🟢 EN LLAMADA (6100)";
+                btn.innerText = "COLGAR LLAMADA";
+                btn.style.background = "#d9534f"; // Rojo
                 btn.disabled = false;
             });
 
             activeCall.on('disconnected', () => {
-                status.innerText = "Llamada finalizada";
+                status.innerText = "Llamada terminada";
+                resetUI();
+            });
+
+            activeCall.on('error', (err) => {
+                console.error(err);
+                status.innerText = "Error: " + err.message;
                 resetUI();
             });
 
         } catch (error) {
-            status.innerText = "❌ Error: " + error.message;
+            console.error("Fallo:", error);
+            status.innerText = "Fallo en conexión: " + error.message;
             btn.disabled = false;
         }
     }
