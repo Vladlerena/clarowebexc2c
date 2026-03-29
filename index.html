@@ -2,148 +2,108 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Webex Calling Admin - 6100</title>
-    
+    <title>Claro Webex C2C - 6100</title>
     <script src="webex.min.js"></script>
-    
     <style>
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background-color: #f4f7f9;
-            display: flex; justify-content: center; align-items: center;
-            height: 100vh; margin: 0;
-        }
-        .card {
-            background: white; padding: 30px; border-radius: 15px;
-            box-shadow: 0 8px 30px rgba(0,0,0,0.1);
-            width: 350px; text-align: center;
-        }
-        h2 { color: #333; margin-bottom: 20px; }
-        
-        #status {
-            background: #eee; padding: 10px; border-radius: 5px;
-            margin-bottom: 20px; font-size: 12px; color: #555;
-            word-break: break-all; min-height: 40px; border: 1px solid #ccc;
-        }
-
-        input {
-            width: 100%; padding: 12px; margin-bottom: 15px;
-            border: 1px solid #ddd; border-radius: 8px; box-sizing: border-box;
-        }
-
-        .btn-call {
-            width: 100%; padding: 15px;
-            background-color: #3278a0; color: white;
-            border: none; border-radius: 8px;
-            font-size: 16px; font-weight: bold; cursor: pointer;
-        }
-        .btn-call:disabled { background-color: #ccc; }
-        
-        .debug-info { margin-top: 15px; font-size: 11px; color: #999; }
+        body { font-family: sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; background: #f4f7f9; }
+        .card { background: white; padding: 30px; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); text-align: center; width: 350px; }
+        #status { background: #eee; padding: 10px; margin: 15px 0; border-radius: 5px; font-size: 13px; }
+        .btn-call { width: 100%; padding: 15px; background: #3278a0; color: white; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; }
+        .btn-call:disabled { background: #ccc; }
+        .oauth-link { display: block; margin-top: 15px; font-size: 12px; color: #0056b3; text-decoration: none; }
     </style>
 </head>
 <body>
 
-    <div class="card">
-        <h2>Anexo AA 6100</h2>
-        
-        <div id="status">Estado: Desconectado. Ingresa Token de Admin.</div>
+<div class="card">
+    <h2>Anexo AA 6100</h2>
+    <div id="status">Estado: Esperando autorización...</div>
+    
+    <input type="hidden" id="tokenInput"> <button id="btnCall" onclick="iniciarLlamada()" class="btn-call">LLAMAR AL 6100</button>
+    
+    <a id="authLink" href="#" class="oauth-link">🔑 Paso 1: Autorizar en Webex</a>
+</div>
 
-        <input type="password" id="tokenInput" placeholder="Pega el Token aquí">
-        
-        <button id="btnCall" onclick="iniciarProceso()" class="btn-call">LLAMAR AL 6100</button>
-        
-        <div class="debug-info">vladlerena.github.io | Webex SDK Calling</div>
-    </div>
+<script>
+    const CLIENT_ID = 'C6b8299f6b12f82cec3482504e820982d6f501b66a0290d70868b782f942368c2';
+    const REDIRECT_URI = 'https://vladlerena.github.io/clarowebexc2c/';
+    
+    // Generamos la URL de autorización correcta (con response_type=token)
+    const authUrl = `https://webexapis.com/v1/authorize?client_id=${CLIENT_ID}&response_type=token&redirect_uri=${encodeURIComponent(REDIRECT_URI)}&scope=spark%3Akms%20spark%3Apeople_read%20spark%3Awebrtc_calling&state=set_state_here`;
+    document.getElementById('authLink').href = authUrl;
 
-    <script>
-        let webex;
-        let activeCall;
+    let webex;
+    let activeCall;
 
-        async function iniciarProceso() {
-            const token = document.getElementById('tokenInput').value.trim();
-            const status = document.getElementById('status');
-            const btn = document.getElementById('btnCall');
-
-            if (!token) {
-                status.innerText = "Error: Ingresa el Token.";
-                return;
-            }
-
-            try {
-                btn.disabled = true;
-                status.innerText = "1/4: Inicializando SDK...";
-
-                // INICIALIZACIÓN CON PLUGINS FORZADOS
-                webex = Webex.init({
-                    credentials: { access_token: token },
-                    config: {
-                        // Forzamos la carga de Calling y WebRTC
-                        phone: {
-                            enablePhoneService: true,
-                            enableWebRTC: true,
-                            preferredDevice: 'BROWSER'
-                        }
-                    }
-                });
-
-                status.innerText = "2/4: Registrando Dispositivo...";
-                await webex.internal.device.register();
-
-                // --- CAMBIO CRÍTICO AQUÍ ---
-                status.innerText = "3/4: Preparando motor de voz...";
-                
-                // Esperamos un segundo a que el SDK "descubra" que tienes Calling
-                if (!webex.phone) {
-                    console.log("Re-intentando cargar módulo Phone...");
-                    // Algunos SDKs requieren que se acceda a la propiedad para inicializarla
-                    await new Promise(resolve => setTimeout(resolve, 1500));
-                }
-
-                if (webex.phone) {
-                    status.innerText = "3/4: Registrando Línea de Voz...";
-                    await webex.phone.register();
-                } else {
-                    // Si llega aquí, el Token no tiene el Scope "spark:webrtc_calling"
-                    throw new Error("Tu cuenta no tiene permisos de voz (WebRTC) activos.");
-                }
-
-                status.innerText = "4/4: Marcando al 6100...";
-                activeCall = webex.phone.dial('6100');
-
-                // EVENTOS
-                activeCall.on('connected', () => {
-                    status.innerText = "✅ EN LLAMADA CON 6100";
-                    btn.innerText = "COLGAR";
-                    btn.style.backgroundColor = "#e74c3c";
-                    btn.disabled = false;
-                });
-
-                activeCall.on('disconnected', () => {
-                    status.innerText = "⚪ Llamada finalizada.";
-                    resetUI();
-                });
-
-                activeCall.on('error', (err) => {
-                    status.innerText = "❌ Error: " + err.message;
-                    resetUI();
-                });
-
-            } catch (error) {
-                console.error("Fallo:", error);
-                status.innerText = "❌ Error: " + error.message;
-                btn.disabled = false;
+    // AL CARGAR: Detectamos si Webex nos envió el token en la URL (#access_token=...)
+    window.onload = () => {
+        const hash = window.location.hash;
+        if (hash && hash.includes('access_token')) {
+            const params = new URLSearchParams(hash.replace('#', '?'));
+            const token = params.get('access_token');
+            if (token) {
+                document.getElementById('tokenInput').value = token;
+                document.getElementById('status').innerText = "✅ Autorizado. Ya puedes llamar.";
+                // Limpia la URL para que no se vea el token
+                window.history.replaceState({}, document.title, window.location.pathname);
             }
         }
+    };
 
-        function resetUI() {
-            const btn = document.getElementById('btnCall');
-            activeCall = null;
-            btn.innerText = "LLAMAR AL 6100";
-            btn.style.backgroundColor = "#3278a0";
+    async function iniciarLlamada() {
+        const token = document.getElementById('tokenInput').value;
+        const status = document.getElementById('status');
+        const btn = document.getElementById('btnCall');
+
+        if (!token) {
+            alert("Primero debes hacer clic en 'Autorizar en Webex'");
+            return;
+        }
+
+        try {
+            btn.disabled = true;
+            status.innerText = "Conectando con Webex...";
+
+            webex = Webex.init({
+                credentials: { access_token: token },
+                config: { phone: { enablePhoneService: true, enableWebRTC: true } }
+            });
+
+            await webex.internal.device.register();
+            
+            // Esperamos un momento para asegurar que el servicio de voz cargue
+            status.innerText = "Registrando línea de voz...";
+            await webex.phone.register();
+
+            status.innerText = "Marcando al 6100...";
+            activeCall = webex.phone.dial('6100');
+
+            activeCall.on('connected', () => {
+                status.innerText = "🟢 EN LLAMADA AL 6100";
+                btn.innerText = "COLGAR";
+                btn.style.background = "red";
+                btn.disabled = false;
+            });
+
+            activeCall.on('disconnected', () => {
+                status.innerText = "Llamada finalizada";
+                resetUI();
+            });
+
+        } catch (error) {
+            status.innerText = "❌ Error: " + error.message;
             btn.disabled = false;
         }
-    </script>
+    }
+
+    function resetUI() {
+        const btn = document.getElementById('btnCall');
+        activeCall = null;
+        btn.innerText = "LLAMAR AL 6100";
+        btn.style.background = "#3278a0";
+        btn.disabled = false;
+    }
+</script>
+
 </body>
 </html>
